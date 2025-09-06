@@ -1,0 +1,27 @@
+{
+  "store": "Tienda Karina - Casilda",
+  "tagline": "Vendemos pasión artesanal desde 2010",
+  "products": [
+    {
+      "name": "Mate artesanal con bombilla de plata",
+      "price": 2500,
+      "stock": 12,
+      "tags": ["artesanal", "regalo", "yerba", "hecho a mano"]
+    },
+    {
+      "name": "Termo acero inoxidable 1L",
+      "price": 8500,
+      "stock": 5,
+      "tags": ["duradero", "viaje", "mate", "termo"]
+    },
+    {
+      "name": "Set de 3 yerbas premium",
+      "price": 3200,
+      "stock": 20,
+      "tags": ["combo", "premium", "sabor", "oferta"]
+    }
+  ],
+  "agent_personality": "Amable, detallista, apasionada por el mate y la cultura argentina",
+  "promotions": ["2x1 en bombillas hasta fin de mes", "Envío gratis en compras +$10.000"],
+  "tasks": ["recomendar productos", "consultar stock en tiempo real", "sugerir combos personalizados", "responder preguntas sobre yerba y mates"]
+}
