@@ -1,0 +1,44 @@
+{
+  "comercio": {
+    "nombre": "Zinnia Belleza Integral",
+    "direccion": "Belgrano 1290, Casilda",
+    "telefono": "(3464) 525902",
+    "horarios": [
+      "08:00 - 12:00",
+      "13:00 - 18:00"
+    ],
+    "asistente_ia": {
+      "nombre": "ZINNIA IA",
+      "tono": "elegante, profesional, transmite tranquilidad y frescura"
+    }
+  },
+  "tratamientos": [
+    {"nombre": "Masajes reductores", "duracion": "30 minutos"},
+    {"nombre": "Masajes descontracturantes", "duracion": "40 minutos"},
+    {"nombre": "Ondas rusas", "descripcion": "electro estimulación"},
+    {"nombre": "Body Stim"},
+    {"nombre": "Radiofrecuencia corporal y facial"},
+    {"nombre": "Cavitación"},
+    {"nombre": "Dermapen"},
+    {"nombre": "Venus Legacy"},
+    {"nombre": "Depilación láser"},
+    {"nombre": "Limpieza facial"},
+    {"nombre": "Rejuvenecimiento facial"}
+  ],
+  "productos": [
+    {"nombre": "Lidherma"},
+    {"nombre": "Idraeth"}
+  ],
+  "servicios_ia": [
+    "Pedir turnos",
+    "Informar sobre tratamientos y duración",
+    "Recomendar productos según necesidad del cliente",
+    "Responder preguntas frecuentes sobre estética y cuidados"
+  ],
+  "desafio_cognitivo": {
+    "pista": "El código de acceso para la IA es la suma de las horas de apertura de la mañana: 8 + 12",
+    "respuesta_correcta": 20,
+    "public_data": "/json/zinnia-public.json",
+    "private_data": "/json/zinnia-full.json"
+  }
+}
