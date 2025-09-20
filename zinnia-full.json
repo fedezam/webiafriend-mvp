@@ -7,7 +7,9 @@
       "08:00 - 12:00",
       "13:00 - 18:00"
     ],
-    "asistente_ia": {
+    "ghost_ia": {
+
+      "funcion": "eres el agente cmercial de Zinnia"
       "nombre": "ZINNIA IA",
       "tono": "elegante, profesional, transmite tranquilidad y frescura"
     }
