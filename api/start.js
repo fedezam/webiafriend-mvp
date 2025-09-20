@@ -3,7 +3,7 @@ export default async function handler(req, res) {
     const jsonUrl = req.query.json;
     if (!jsonUrl) return res.status(400).send('Missing json parameter');
 
-    // --- SECURITY: whitelist domains to avoid SSRF ---
+    // --- SECURITY: whitelist domains ---
     const allowedHosts = [
       'ia-data.vercel.app',
       'raw.githubusercontent.com',
@@ -17,107 +17,89 @@ export default async function handler(req, res) {
     }
     if (!allowedHosts.includes(parsed.hostname)) return res.status(400).send('Domain not allowed');
 
-    // --- Fetch the JSON (server-side) ---
+    // --- Fetch JSON ---
     const r = await fetch(jsonUrl);
     if (!r.ok) return res.status(502).send('Failed to fetch json');
     const data = await r.json();
 
-    // --- Extract persona & services safely ---
-    const comercio = data.comercio || {};
-    const persona = comercio.asistente_ia || { nombre: 'ZINNIA IA', tono: 'elegante, profesional, transmite tranquilidad y frescura' };
-    const tiendaName = comercio.nombre || 'Zinnia Belleza Integral';
-    const tratamientos = data.tratamientos || [];
-    const productos = data.productos || [];
-    const servicios = data.servicios_ia || [];
+    // --- Extract persona / negocio ---
+    const comercio = data.comercio || data.negocio || data.empresa || {};
+    const persona = comercio.asistente_ia || data.persona || data.asistente || {};
+    const personaName = persona.nombre || 'Asistente Virtual';
+    const tone = persona.tono || 'profesional, amable';
+    const tiendaName = comercio.nombre || 'Mi Negocio';
 
-    // --- Build a concise service summary (limit to top 5 treatments) ---
-    const topTratamientos = tratamientos.slice(0, 5).map(t => {
-      const name = t.nombre || 'tratamiento';
-      const duracion = t.duracion ? ` - ${t.duracion}` : '';
-      const descripcion = t.descripcion ? ` — ${t.descripcion}` : '';
-      return `• ${name}${duracion}${descripcion}`;
-    }).join('\n');
-
-    // --- Build a concise product summary ---
-    const topProductos = productos.slice(0, 5).map(p => `• ${p.nombre || 'producto'}`).join('\n');
-
-    const personaName = persona.nombre || 'ZINNIA IA';
-    const tone = persona.tono || 'elegante, profesional, transmite tranquilidad y frescura';
-
-    // --- Check if instructions should be hidden ---
-    const hideInstructions = process.env.HIDE_INSTRUCTIONS === 'true' || req.query.hide === '1';
-    
-    // --- Build prompt that looks natural when shown ---
-    let naturalPrompt = `Configurando ${personaName} para ${tiendaName}...
-
-${personaName} es una asistente virtual especializada en estética y belleza.
-Información del centro:
-
-📍 ${tiendaName}
-🏠 ${comercio.direccion || 'Casilda'}
-📞 ${comercio.telefono || 'Consultar'}
-⏰ ${comercio.horarios ? comercio.horarios.join(', ') : 'Consultar'}
-
-✨ Servicios:
-${topTratamientos}
-
-🛍️ Productos:
-${topProductos}`;
-
-    // Only add instructions if not hidden
-    if (!hideInstructions) {
-      naturalPrompt += `
-
----
-
-Por favor, actúa como ${personaName} con tono ${tone}. Saluda exactamente así: "¡Hola! Soy ${personaName} 👋 ¿En qué te puedo ayudar hoy?" y ofrece asistencia profesional con los servicios mencionados.`;
-    } else {
-      // More subtle approach - looks natural
-      naturalPrompt += `
-
----
-
-¡${personaName} está lista para atenderte! Su especialidad es brindar un servicio ${tone} y profesional. ¡Que comience la conversación! 👋`;
+    // --- Generic extract helper ---
+    function extractList(keys) {
+      for (const key of keys) {
+        if (Array.isArray(data[key])) return data[key];
+      }
+      return [];
     }
 
-    // --- Trim prompt if too long for URL ---
+    const tratamientos = extractList(['tratamientos', 'servicios', 'services']);
+    const productos = extractList(['productos', 'items', 'catalogo']);
+    const serviciosIA = extractList(['servicios_ia', 'capabilities', 'features']);
+
+    // --- Build sections dynamically ---
+    let naturalPrompt = `Configurando ${personaName} para ${tiendaName}...\n\n`;
+
+    // Info negocio
+    if (comercio.nombre || comercio.direccion || comercio.telefono || comercio.horarios) {
+      naturalPrompt += `Información del centro:\n`;
+      if (comercio.nombre) naturalPrompt += `📍 ${comercio.nombre}\n`;
+      if (comercio.direccion) naturalPrompt += `🏠 ${comercio.direccion}\n`;
+      if (comercio.telefono) naturalPrompt += `📞 ${comercio.telefono}\n`;
+      if (Array.isArray(comercio.horarios)) {
+        naturalPrompt += `⏰ ${comercio.horarios.join(', ')}\n`;
+      }
+      naturalPrompt += `\n`;
+    }
+
+    // Tratamientos / servicios
+    if (tratamientos.length) {
+      naturalPrompt += `✨ Servicios:\n` + tratamientos.slice(0, 5).map(t => {
+        const name = t.nombre || t;
+        const duracion = t.duracion ? ` - ${t.duracion}` : '';
+        const desc = t.descripcion ? ` — ${t.descripcion}` : '';
+        return `• ${name}${duracion}${desc}`;
+      }).join('\n') + `\n\n`;
+    }
+
+    // Productos
+    if (productos.length) {
+      naturalPrompt += `🛍️ Productos:\n` + productos.slice(0, 5).map(p => `• ${p.nombre || p}`).join('\n') + `\n\n`;
+    }
+
+    // Servicios IA / capacidades
+    if (serviciosIA.length) {
+      naturalPrompt += `🤖 Capacidades de la asistente:\n` + serviciosIA.map(s => `• ${s}`).join('\n') + `\n\n`;
+    }
+
+    // --- Check hideInstructions ---
+    const hideInstructions = process.env.HIDE_INSTRUCTIONS === 'true' || req.query.hide === '1';
+
+    if (!hideInstructions) {
+      naturalPrompt += `---\n\nPor favor, actúa como ${personaName} con tono ${tone}. Saluda exactamente así: "¡Hola! Soy ${personaName} 👋 ¿En qué te puedo ayudar hoy?"`;
+    } else {
+      naturalPrompt += `---\n\n¡${personaName} está lista para atenderte! Su especialidad es brindar un servicio ${tone}. 👋`;
+    }
+
+    // --- Trim prompt if too long ---
     const MAX_Q_LENGTH = 3000;
     let finalPrompt = naturalPrompt;
-    
     if (encodeURIComponent(finalPrompt).length > MAX_Q_LENGTH) {
-      const shortTratamientos = tratamientos.slice(0, 4).map(t => `• ${t.nombre || 'tratamiento'}${t.duracion ? ` - ${t.duracion}` : ''}`).join('\n');
-      const shortProductos = productos.slice(0, 3).map(p => `• ${p.nombre}`).join('\n');
-      
-      finalPrompt = `Configurando ${personaName} para ${tiendaName}
-
-📍 ${comercio.direccion || 'Casilda'}
-📞 ${comercio.telefono || 'Consultar'}
-
-✨ Principales servicios:
-${shortTratamientos}
-
-🛍️ Productos: ${shortProductos}`;
-
-      if (!hideInstructions) {
-        finalPrompt += `
-
-Actúa como ${personaName} con tono ${tone}. Saluda: "¡Hola! Soy ${personaName} 👋 ¿En qué te puedo ayudar hoy?"`;
-      } else {
-        finalPrompt += `
-
-¡${personaName} está lista para atenderte con su característico tono ${tone}! 👋`;
-      }
+      finalPrompt = `Configurando ${personaName} para ${tiendaName}.\n\n¡${personaName} está lista para atenderte con su tono ${tone}! 👋`;
     }
 
+    // Encode + redirect
     const encoded = encodeURIComponent(finalPrompt);
-
-    // --- Build ChatGPT URL (back to working solution) ---
     const chatGptBase = 'https://chat.openai.com/?q=';
     const finalUrl = chatGptBase + encoded;
 
-    // Redirect (302)
     res.writeHead(302, { Location: finalUrl });
     res.end();
+
   } catch (err) {
     console.error(err);
     res.status(500).send('Internal error');
