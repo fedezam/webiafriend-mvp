@@ -29,78 +29,41 @@ export default async function handler(req, res) {
     const tone = persona.tono || 'profesional, cordial y claro';
     const tiendaName = comercio.nombre || 'Mi Negocio';
 
-    // --- Generic extract helper ---
+    // --- Extract lists ---
     function extractList(keys) {
       for (const key of keys) {
         if (Array.isArray(data[key])) return data[key];
       }
       return [];
     }
-
     const servicios = extractList(['servicios', 'tratamientos', 'services']);
     const productos = extractList(['productos', 'items', 'catalogo']);
     const capacidades = extractList(['servicios_ia', 'capabilities', 'features']);
 
-    // --- Universal assistant instructions ---
-    let universalPrompt = `
-Sos ${personaName}, asistente virtual de ${tiendaName}.
-Tu tono es ${tone}.
-Respondé siempre en primera persona, nunca como ChatGPT ni como modelo.
-Tu tarea es:
-- Saludar al usuario: "¡Hola! Soy ${personaName} 👋 ¿En qué te puedo ayudar hoy?"
-- Asistir en consultas sobre productos y servicios usando la información del JSON.
-- Si te preguntan por un producto o servicio específico, buscá coincidencias en el inventario y respondé con nombre, precio, características y stock.
-- Si no hay coincidencia exacta, recomendá lo más cercano disponible en el comercio.
-- Si la pregunta es más general (ej. “¿qué zapatillas son buenas para running?”), usá tu conocimiento general y luego ofrecé las mejores opciones que tenga el comercio.
-- Siempre ofrecé ayuda para concretar la compra, reserva o recomendación.
-`;
+    // --- Build user-visible prompt (solo saludo inicial) ---
+    const hideInstructions = process.env.HIDE_INSTRUCTIONS === 'true' || req.query.hide === '1';
 
-    // --- Business info (solo como contexto oculto) ---
-    if (comercio.direccion || comercio.telefono || comercio.horarios) {
-      universalPrompt += `
-Información del comercio:
-${comercio.direccion ? `📍 ${comercio.direccion}\n` : ''}
-${comercio.telefono ? `📞 ${comercio.telefono}\n` : ''}
-${Array.isArray(comercio.horarios) ? `⏰ ${comercio.horarios.join(', ')}\n` : ''}
-`;
+    let userPrompt;
+    if (hideInstructions) {
+      // Solo saludo inicial + mensaje natural
+      userPrompt = `¡Hola! Soy ${personaName} 👋
+Soy la asistente virtual de ${tiendaName}. 
+Estoy lista para ayudarte con nuestros servicios y productos. 
+¿Querés que te cuente sobre nuestros servicios o productos disponibles?`;
+    } else {
+      // Muestra un poco más de info si hide=false
+      const topServicios = servicios.slice(0,5).map(s => s.nombre || s).join(', ') || 'consultar servicios';
+      const topProductos = productos.slice(0,5).map(p => p.nombre || p).join(', ') || 'consultar productos';
+
+      userPrompt = `¡Hola! Soy ${personaName} 👋
+Soy la asistente virtual de ${tiendaName}. 
+Puedo ayudarte con nuestros servicios: ${topServicios} 
+y con productos: ${topProductos}. 
+¿En qué te puedo ayudar hoy?`;
     }
 
-    if (servicios.length) {
-      universalPrompt += `
-Servicios disponibles:
-${servicios.slice(0, 10).map(s => {
-        const name = s.nombre || s;
-        const duracion = s.duracion ? ` - ${s.duracion}` : '';
-        const desc = s.descripcion ? ` — ${s.descripcion}` : '';
-        return `• ${name}${duracion}${desc}`;
-      }).join('\n')}
-`;
-    }
-
-    if (productos.length) {
-      universalPrompt += `
-Productos en catálogo:
-${productos.slice(0, 10).map(p => {
-        const nombre = p.nombre || p;
-        const precio = p.precio ? ` - $${p.precio}` : '';
-        const stock = p.stock ? ` (Stock: ${p.stock})` : '';
-        const desc = p.caracteristicas ? ` — ${p.caracteristicas}` : '';
-        return `• ${nombre}${precio}${stock}${desc}`;
-      }).join('\n')}
-`;
-    }
-
-    if (capacidades.length) {
-      universalPrompt += `
-Capacidades del asistente:
-${capacidades.map(s => `• ${s}`).join('\n')}
-`;
-    }
-
-    // --- Hide instructions: usuario nunca ve el prompt ---
-    const encoded = encodeURIComponent(universalPrompt);
-
-    // Redirigir directo a ChatGPT con prompt cargado
+    // --- Encode and redirect ---
+    const encoded = encodeURIComponent(userPrompt);
     const chatGptBase = 'https://chat.openai.com/?q=';
     const finalUrl = chatGptBase + encoded;
 
