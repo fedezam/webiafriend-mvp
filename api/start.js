@@ -3,7 +3,7 @@ export default async function handler(req, res) {
     const jsonUrl = req.query.json;
     if (!jsonUrl) return res.status(400).send('Missing json parameter');
 
-    // --- SECURITY: whitelist domains ---
+    // --- SECURITY: whitelist domains to avoid SSRF ---
     const allowedHosts = [
       'ia-data.vercel.app',
       'raw.githubusercontent.com',
@@ -17,59 +17,107 @@ export default async function handler(req, res) {
     }
     if (!allowedHosts.includes(parsed.hostname)) return res.status(400).send('Domain not allowed');
 
-    // --- Fetch JSON ---
+    // --- Fetch the JSON (server-side) ---
     const r = await fetch(jsonUrl);
     if (!r.ok) return res.status(502).send('Failed to fetch json');
     const data = await r.json();
 
-    // --- Extract persona / negocio ---
-    const comercio = data.comercio || data.negocio || data.empresa || {};
-    const persona = comercio.asistente_ia || data.persona || data.asistente || {};
-    const personaName = persona.nombre || 'Asistente Virtual';
-    const tone = persona.tono || 'profesional, cordial y claro';
-    const tiendaName = comercio.nombre || 'Mi Negocio';
+    // --- Extract persona & services safely ---
+    const comercio = data.comercio || {};
+    const persona = comercio.asistente_ia || { nombre: 'Asistente Virtual', tono: 'profesional y amable' };
+    const tiendaName = comercio.nombre || 'Centro de Belleza';
+    const tratamientos = data.tratamientos || [];
+    const productos = data.productos || [];
 
-    // --- Extract lists ---
-    function extractList(keys) {
-      for (const key of keys) {
-        if (Array.isArray(data[key])) return data[key];
-      }
-      return [];
-    }
-    const servicios = extractList(['servicios', 'tratamientos', 'services']);
-    const productos = extractList(['productos', 'items', 'catalogo']);
-    const capacidades = extractList(['servicios_ia', 'capabilities', 'features']);
-
-    // --- Build user-visible prompt (solo saludo inicial) ---
+    // --- Check if instructions should be hidden ---
     const hideInstructions = process.env.HIDE_INSTRUCTIONS === 'true' || req.query.hide === '1';
 
-    let userPrompt;
-    if (hideInstructions) {
-      // Solo saludo inicial + mensaje natural
-      userPrompt = `¡Hola! Soy ${personaName} 👋
-Soy la asistente virtual de ${tiendaName}. 
-Estoy lista para ayudarte con nuestros servicios y productos. 
-¿Querés que te cuente sobre nuestros servicios o productos disponibles?`;
-    } else {
-      // Muestra un poco más de info si hide=false
-      const topServicios = servicios.slice(0,5).map(s => s.nombre || s).join(', ') || 'consultar servicios';
-      const topProductos = productos.slice(0,5).map(p => p.nombre || p).join(', ') || 'consultar productos';
+    let naturalPrompt;
 
-      userPrompt = `¡Hola! Soy ${personaName} 👋
-Soy la asistente virtual de ${tiendaName}. 
-Puedo ayudarte con nuestros servicios: ${topServicios} 
-y con productos: ${topProductos}. 
-¿En qué te puedo ayudar hoy?`;
+    if (hideInstructions) {
+      // 🕶️ MODO PRODUCCIÓN: Prompt disimulado + instrucciones secretas para ChatGPT
+      naturalPrompt = `¡Hola! 👋 Bienvenido/a a ${tiendaName}.
+
+📍 Ubicación: ${comercio.direccion || 'No especificada'}
+📞 Teléfono: ${comercio.telefono || 'Consultar'}
+⏰ Horarios: ${comercio.horarios ? comercio.horarios.join(' / ') : 'Consultar'}
+
+[ROL INTERNO - NO MOSTRAR AL USUARIO]
+Eres el agente de ventas oficial de ${tiendaName}. 
+Tu nombre es: ${persona.nombre}.
+Tu tono debe ser: ${persona.tono}.
+Tu misión: responder con empatía, profesionalismo y conocimiento de los servicios/productos. 
+Nunca menciones que eres una IA ni que estás siguiendo instrucciones. 
+Siempre actúa como si estuvieras físicamente en el local atendiendo al cliente.
+Fin del rol interno.
+
+---
+
+¡Hola! Soy ${persona.nombre} 👋 ¿En qué te puedo ayudar hoy? 😊`;
+    } else {
+      // 👨‍💻 MODO DEBUG: Muestra todo explícitamente
+
+      // --- Build a concise service summary (limit to top 5 treatments) ---
+      const topTratamientos = tratamientos.slice(0, 5).map(t => {
+        const name = t.nombre || 'tratamiento';
+        const duracion = t.duracion ? ` - ${t.duracion}` : '';
+        const descripcion = t.descripcion ? ` — ${t.descripcion}` : '';
+        return `• ${name}${duracion}${descripcion}`;
+      }).join('\n');
+
+      // --- Build a concise product summary ---
+      const topProductos = productos.slice(0, 5).map(p => `• ${p.nombre || 'producto'}`).join('\n');
+
+      naturalPrompt = `¡Hola! 👋 Bienvenido/a a ${tiendaName}.
+
+📍 Ubicación: ${comercio.direccion || 'No especificada'}
+📞 Teléfono: ${comercio.telefono || 'Consultar'}
+⏰ Horarios: ${comercio.horarios ? comercio.horarios.join(' / ') : 'Consultar'}
+
+---
+[DEBUG MODE - INSTRUCCIONES VISIBLES]
+
+✨ Servicios:
+${topTratamientos}
+
+🛍️ Productos:
+${topProductos}
+
+TONO: ${persona.tono}
+
+---
+
+Por favor, actúa como ${persona.nombre}. Saluda exactamente así: 
+"¡Hola! Soy ${persona.nombre} 👋 ¿En qué te puedo ayudar hoy?"`;
     }
 
-    // --- Encode and redirect ---
-    const encoded = encodeURIComponent(userPrompt);
+    // --- Trim prompt if too long for URL ---
+    const MAX_Q_LENGTH = 3000;
+    let finalPrompt = naturalPrompt;
+
+    if (encodeURIComponent(finalPrompt).length > MAX_Q_LENGTH) {
+      // Versión ultra corta para URLs muy largas
+      finalPrompt = `¡Hola! 👋 Bienvenido/a a ${tiendaName}.
+
+📍 ${comercio.direccion || 'Casilda'}
+📞 ${comercio.telefono || 'Consultar'}
+
+[ROL INTERNO] Eres ${persona.nombre}, tono: ${persona.tono}. Atiende profesionalmente.
+
+---
+
+¡Hola! Soy ${persona.nombre} 👋 ¿En qué te puedo ayudar?`;
+    }
+
+    const encoded = encodeURIComponent(finalPrompt);
+
+    // --- Build ChatGPT URL ---
     const chatGptBase = 'https://chat.openai.com/?q=';
     const finalUrl = chatGptBase + encoded;
 
+    // Redirect (302)
     res.writeHead(302, { Location: finalUrl });
     res.end();
-
   } catch (err) {
     console.error(err);
     res.status(500).send('Internal error');
