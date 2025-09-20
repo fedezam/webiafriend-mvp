@@ -28,8 +28,9 @@ export default async function handler(req, res) {
     const tiendaName = comercio.nombre || 'Zinnia Belleza Integral';
     const tratamientos = data.tratamientos || [];
     const productos = data.productos || [];
+    const servicios = data.servicios_ia || [];
 
-    // --- Build service summary ---
+    // --- Build a concise service summary (limit to top 5 treatments) ---
     const topTratamientos = tratamientos.slice(0, 5).map(t => {
       const name = t.nombre || 'tratamiento';
       const duracion = t.duracion ? ` - ${t.duracion}` : '';
@@ -37,41 +38,17 @@ export default async function handler(req, res) {
       return `• ${name}${duracion}${descripcion}`;
     }).join('\n');
 
+    // --- Build a concise product summary ---
     const topProductos = productos.slice(0, 5).map(p => `• ${p.nombre || 'producto'}`).join('\n');
 
     const personaName = persona.nombre || 'ZINNIA IA';
     const tone = persona.tono || 'elegante, profesional, transmite tranquilidad y frescura';
 
-    // --- NUEVO APPROACH: Solo mensaje inicial visible ---
-    const mensajeVisible = `¡Hola! Soy ${personaName} 👋 ¿En qué te puedo ayudar hoy?
-
-Puedo asistirte con:
-• Reservas de turnos
-• Información sobre tratamientos
-• Consultas sobre productos
-• Preguntas de estética
-
-¿Te gustaría reservar un turno o conocer más sobre algún servicio?
-
----
-CONTEXTO PARA EL ASISTENTE:
-Eres ${personaName}, asistente de ${tiendaName} (${comercio.direccion || 'Casilda'}).
-Tono: ${tone}.
-Mantén siempre este rol profesional y elegante.
-
-SERVICIOS:
-${topTratamientos}
-
-PRODUCTOS:
-${topProductos}
-
-HORARIOS: ${comercio.horarios ? comercio.horarios.join(', ') : 'Consultar'}
-CONTACTO: ${comercio.telefono || 'Consultar'}
-
-Para reservas, solicita contacto del cliente.`;
-
+    // --- Check if instructions should be hidden ---
+    const hideInstructions = process.env.HIDE_INSTRUCTIONS === 'true' || req.query.hide === '1';
+    
     // --- Build prompt that looks natural when shown ---
-    const naturalPrompt = `Configurando ${personaName} para ${tiendaName}...
+    let naturalPrompt = `Configurando ${personaName} para ${tiendaName}...
 
 ${personaName} es una asistente virtual especializada en estética y belleza.
 Información del centro:
@@ -85,18 +62,60 @@ Información del centro:
 ${topTratamientos}
 
 🛍️ Productos:
-${topProductos}
+${topProductos}`;
+
+    // Only add instructions if not hidden
+    if (!hideInstructions) {
+      naturalPrompt += `
 
 ---
 
 Por favor, actúa como ${personaName} con tono ${tone}. Saluda exactamente así: "¡Hola! Soy ${personaName} 👋 ¿En qué te puedo ayudar hoy?" y ofrece asistencia profesional con los servicios mencionados.`;
+    } else {
+      // More subtle approach - looks natural
+      naturalPrompt += `
+
+---
+
+¡${personaName} está lista para atenderte! Su especialidad es brindar un servicio ${tone} y profesional. ¡Que comience la conversación! 👋`;
+    }
+
+    // --- Trim prompt if too long for URL ---
+    const MAX_Q_LENGTH = 3000;
+    let finalPrompt = naturalPrompt;
+    
+    if (encodeURIComponent(finalPrompt).length > MAX_Q_LENGTH) {
+      const shortTratamientos = tratamientos.slice(0, 4).map(t => `• ${t.nombre || 'tratamiento'}${t.duracion ? ` - ${t.duracion}` : ''}`).join('\n');
+      const shortProductos = productos.slice(0, 3).map(p => `• ${p.nombre}`).join('\n');
+      
+      finalPrompt = `Configurando ${personaName} para ${tiendaName}
+
+📍 ${comercio.direccion || 'Casilda'}
+📞 ${comercio.telefono || 'Consultar'}
+
+✨ Principales servicios:
+${shortTratamientos}
+
+🛍️ Productos: ${shortProductos}`;
+
+      if (!hideInstructions) {
+        finalPrompt += `
+
+Actúa como ${personaName} con tono ${tone}. Saluda: "¡Hola! Soy ${personaName} 👋 ¿En qué te puedo ayudar hoy?"`;
+      } else {
+        finalPrompt += `
+
+¡${personaName} está lista para atenderte con su característico tono ${tone}! 👋`;
+      }
+    }
+
+    const encoded = encodeURIComponent(finalPrompt);
 
     // --- Build ChatGPT URL (back to working solution) ---
     const chatGptBase = 'https://chat.openai.com/?q=';
-    const encoded = encodeURIComponent(naturalPrompt);
     const finalUrl = chatGptBase + encoded;
 
-    // Redirect
+    // Redirect (302)
     res.writeHead(302, { Location: finalUrl });
     res.end();
   } catch (err) {
