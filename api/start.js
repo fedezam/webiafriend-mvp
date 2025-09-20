@@ -47,12 +47,8 @@ export default async function handler(req, res) {
     // --- Check if instructions should be hidden ---
     const hideInstructions = process.env.HIDE_INSTRUCTIONS === 'true' || req.query.hide === '1';
     
-    // --- Build prompt based on hide setting ---
-    let naturalPrompt;
-    
-    if (!hideInstructions) {
-      // Show full info when not hidden
-      naturalPrompt = `Configurando ${personaName} para ${tiendaName}...
+    // --- Build prompt that looks natural when shown ---
+    let naturalPrompt = `Configurando ${personaName} para ${tiendaName}...
 
 ${personaName} es una asistente virtual especializada en estética y belleza.
 Información del centro:
@@ -66,24 +62,22 @@ Información del centro:
 ${topTratamientos}
 
 🛍️ Productos:
-${topProductos}
+${topProductos}`;
+
+    // Only add instructions if not hidden
+    if (!hideInstructions) {
+      naturalPrompt += `
 
 ---
 
 Por favor, actúa como ${personaName} con tono ${tone}. Saluda exactamente así: "¡Hola! Soy ${personaName} 👋 ¿En qué te puedo ayudar hoy?" y ofrece asistencia profesional con los servicios mencionados.`;
     } else {
-      // Hidden mode - only the final message with context embedded
-      naturalPrompt = `¡${personaName} está lista para atenderte! 
+      // More subtle approach - looks natural
+      naturalPrompt += `
 
-Actúa como ${personaName}, asistente virtual de ${tiendaName} (${comercio.direccion || 'Casilda'}). 
-Tienes un tono ${tone}.
+---
 
-Servicios disponibles: ${tratamientos.slice(0, 8).map(t => t.nombre).join(', ')}.
-Productos: ${productos.map(p => p.nombre).join(', ')}.
-Horarios: ${comercio.horarios ? comercio.horarios.join(', ') : 'Consultar'}.
-Teléfono: ${comercio.telefono || 'Consultar'}.
-
-Saluda exactamente así: "¡Hola! Soy ${personaName} 👋 ¿En qué te puedo ayudar hoy?" y ofrece asistencia profesional.`;
+¡${personaName} está lista para atenderte! Su especialidad es brindar un servicio ${tone} y profesional. ¡Que comience la conversación! 👋`;
     }
 
     // --- Trim prompt if too long for URL ---
@@ -94,30 +88,18 @@ Saluda exactamente así: "¡Hola! Soy ${personaName} 👋 ¿En qué te puedo ayu
       const shortTratamientos = tratamientos.slice(0, 4).map(t => `• ${t.nombre || 'tratamiento'}${t.duracion ? ` - ${t.duracion}` : ''}`).join('\n');
       const shortProductos = productos.slice(0, 3).map(p => `• ${p.nombre}`).join('\n');
       
-      // Short version for hidden mode
-      finalPrompt = `¡${personaName} está lista para atenderte!
-
-Eres ${personaName} de ${tiendaName} (${comercio.direccion || 'Casilda'}).
-Tono: ${tone}.
-Servicios: ${shortTratamientos.replace(/• /g, '').replace(/\n/g, ', ')}.
-Productos: ${shortProductos.replace(/• /g, '').replace(/\n/g, ', ')}.
-Tel: ${comercio.telefono || 'Consultar'}.
-
-Saluda: "¡Hola! Soy ${personaName} 👋 ¿En qué te puedo ayudar hoy?"`;
-    } else {
-      // Full version for non-hidden mode
       finalPrompt = `Configurando ${personaName} para ${tiendaName}
 
 📍 ${comercio.direccion || 'Casilda'}
-📞 ${comercio.telefono || 'Consultar'}`;
-
-      if (!hideInstructions) {
-        finalPrompt += `
+📞 ${comercio.telefono || 'Consultar'}
 
 ✨ Principales servicios:
 ${shortTratamientos}
 
-🛍️ Productos: ${shortProductos}
+🛍️ Productos: ${shortProductos}`;
+
+      if (!hideInstructions) {
+        finalPrompt += `
 
 Actúa como ${personaName} con tono ${tone}. Saluda: "¡Hola! Soy ${personaName} 👋 ¿En qué te puedo ayudar hoy?"`;
       } else {
@@ -125,7 +107,6 @@ Actúa como ${personaName} con tono ${tone}. Saluda: "¡Hola! Soy ${personaName}
 
 ¡${personaName} está lista para atenderte con su característico tono ${tone}! 👋`;
       }
-    }
     }
 
     const encoded = encodeURIComponent(finalPrompt);
