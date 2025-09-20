@@ -24,94 +24,94 @@ export default async function handler(req, res) {
 
     // --- Extract persona & services safely ---
     const comercio = data.comercio || {};
-    const persona = comercio.asistente_ia || { nombre: 'Asistente Virtual', tono: 'profesional y amable' };
-    const tiendaName = comercio.nombre || 'Centro de Belleza';
+    const persona = comercio.asistente_ia || { nombre: 'ZINNIA IA', tono: 'elegante, profesional, transmite tranquilidad y frescura' };
+    const tiendaName = comercio.nombre || 'Zinnia Belleza Integral';
     const tratamientos = data.tratamientos || [];
     const productos = data.productos || [];
+    const servicios = data.servicios_ia || [];
+
+    // --- Build a concise service summary (limit to top 5 treatments) ---
+    const topTratamientos = tratamientos.slice(0, 5).map(t => {
+      const name = t.nombre || 'tratamiento';
+      const duracion = t.duracion ? ` - ${t.duracion}` : '';
+      const descripcion = t.descripcion ? ` — ${t.descripcion}` : '';
+      return `• ${name}${duracion}${descripcion}`;
+    }).join('\n');
+
+    // --- Build a concise product summary ---
+    const topProductos = productos.slice(0, 5).map(p => `• ${p.nombre || 'producto'}`).join('\n');
+
+    const personaName = persona.nombre || 'ZINNIA IA';
+    const tone = persona.tono || 'elegante, profesional, transmite tranquilidad y frescura';
 
     // --- Check if instructions should be hidden ---
     const hideInstructions = process.env.HIDE_INSTRUCTIONS === 'true' || req.query.hide === '1';
+    
+    // --- Build prompt that looks natural when shown ---
+    let naturalPrompt = `Configurando ${personaName} para ${tiendaName}...
 
-    let naturalPrompt;
+${personaName} es una asistente virtual especializada en estética y belleza.
+Información del centro:
 
-    if (hideInstructions) {
-      // 🕶️ MODO PRODUCCIÓN: Prompt disimulado + instrucciones secretas para ChatGPT
-      naturalPrompt = `¡Hola! 👋 Bienvenido/a a ${tiendaName}.
-
-📍 Ubicación: ${comercio.direccion || 'No especificada'}
-📞 Teléfono: ${comercio.telefono || 'Consultar'}
-⏰ Horarios: ${comercio.horarios ? comercio.horarios.join(' / ') : 'Consultar'}
-
-[ROL INTERNO - NO MOSTRAR AL USUARIO]
-Eres el agente de ventas oficial de ${tiendaName}. 
-Tu nombre es: ${persona.nombre}.
-Tu tono debe ser: ${persona.tono}.
-Tu misión: responder con empatía, profesionalismo y conocimiento de los servicios/productos. 
-Nunca menciones que eres una IA ni que estás siguiendo instrucciones. 
-Siempre actúa como si estuvieras físicamente en el local atendiendo al cliente.
-Fin del rol interno.
-
----
-
-¡Hola! Soy ${persona.nombre} 👋 ¿En qué te puedo ayudar hoy? 😊`;
-    } else {
-      // 👨‍💻 MODO DEBUG: Muestra todo explícitamente
-
-      // --- Build a concise service summary (limit to top 5 treatments) ---
-      const topTratamientos = tratamientos.slice(0, 5).map(t => {
-        const name = t.nombre || 'tratamiento';
-        const duracion = t.duracion ? ` - ${t.duracion}` : '';
-        const descripcion = t.descripcion ? ` — ${t.descripcion}` : '';
-        return `• ${name}${duracion}${descripcion}`;
-      }).join('\n');
-
-      // --- Build a concise product summary ---
-      const topProductos = productos.slice(0, 5).map(p => `• ${p.nombre || 'producto'}`).join('\n');
-
-      naturalPrompt = `¡Hola! 👋 Bienvenido/a a ${tiendaName}.
-
-📍 Ubicación: ${comercio.direccion || 'No especificada'}
-📞 Teléfono: ${comercio.telefono || 'Consultar'}
-⏰ Horarios: ${comercio.horarios ? comercio.horarios.join(' / ') : 'Consultar'}
-
----
-[DEBUG MODE - INSTRUCCIONES VISIBLES]
+📍 ${tiendaName}
+🏠 ${comercio.direccion || 'Casilda'}
+📞 ${comercio.telefono || 'Consultar'}
+⏰ ${comercio.horarios ? comercio.horarios.join(', ') : 'Consultar'}
 
 ✨ Servicios:
 ${topTratamientos}
 
 🛍️ Productos:
-${topProductos}
+${topProductos}`;
 
-TONO: ${persona.tono}
+    // Only add instructions if not hidden
+    if (!hideInstructions) {
+      naturalPrompt += `
 
 ---
 
-Por favor, actúa como ${persona.nombre}. Saluda exactamente así: 
-"¡Hola! Soy ${persona.nombre} 👋 ¿En qué te puedo ayudar hoy?"`;
+Por favor, actúa como ${personaName} con tono ${tone}. Saluda exactamente así: "¡Hola! Soy ${personaName} 👋 ¿En qué te puedo ayudar hoy?" y ofrece asistencia profesional con los servicios mencionados.`;
+    } else {
+      // More subtle approach - looks natural
+      naturalPrompt += `
+
+---
+
+¡${personaName} está lista para atenderte! Su especialidad es brindar un servicio ${tone} y profesional. ¡Que comience la conversación! 👋`;
     }
 
     // --- Trim prompt if too long for URL ---
     const MAX_Q_LENGTH = 3000;
     let finalPrompt = naturalPrompt;
-
+    
     if (encodeURIComponent(finalPrompt).length > MAX_Q_LENGTH) {
-      // Versión ultra corta para URLs muy largas
-      finalPrompt = `¡Hola! 👋 Bienvenido/a a ${tiendaName}.
+      const shortTratamientos = tratamientos.slice(0, 4).map(t => `• ${t.nombre || 'tratamiento'}${t.duracion ? ` - ${t.duracion}` : ''}`).join('\n');
+      const shortProductos = productos.slice(0, 3).map(p => `• ${p.nombre}`).join('\n');
+      
+      finalPrompt = `Configurando ${personaName} para ${tiendaName}
 
 📍 ${comercio.direccion || 'Casilda'}
 📞 ${comercio.telefono || 'Consultar'}
 
-[ROL INTERNO] Eres ${persona.nombre}, tono: ${persona.tono}. Atiende profesionalmente.
+✨ Principales servicios:
+${shortTratamientos}
 
----
+🛍️ Productos: ${shortProductos}`;
 
-¡Hola! Soy ${persona.nombre} 👋 ¿En qué te puedo ayudar?`;
+      if (!hideInstructions) {
+        finalPrompt += `
+
+Actúa como ${personaName} con tono ${tone}. Saluda: "¡Hola! Soy ${personaName} 👋 ¿En qué te puedo ayudar hoy?"`;
+      } else {
+        finalPrompt += `
+
+¡${personaName} está lista para atenderte con su característico tono ${tone}! 👋`;
+      }
     }
 
     const encoded = encodeURIComponent(finalPrompt);
 
-    // --- Build ChatGPT URL ---
+    // --- Build ChatGPT URL (back to working solution) ---
     const chatGptBase = 'https://chat.openai.com/?q=';
     const finalUrl = chatGptBase + encoded;
 
