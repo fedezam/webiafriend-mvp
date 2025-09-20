@@ -26,7 +26,7 @@ export default async function handler(req, res) {
     const comercio = data.comercio || data.negocio || data.empresa || {};
     const persona = comercio.asistente_ia || data.persona || data.asistente || {};
     const personaName = persona.nombre || 'Asistente Virtual';
-    const tone = persona.tono || 'profesional, amable';
+    const tone = persona.tono || 'profesional, cordial y claro';
     const tiendaName = comercio.nombre || 'Mi Negocio';
 
     // --- Generic extract helper ---
@@ -37,63 +37,70 @@ export default async function handler(req, res) {
       return [];
     }
 
-    const tratamientos = extractList(['tratamientos', 'servicios', 'services']);
+    const servicios = extractList(['servicios', 'tratamientos', 'services']);
     const productos = extractList(['productos', 'items', 'catalogo']);
-    const serviciosIA = extractList(['servicios_ia', 'capabilities', 'features']);
+    const capacidades = extractList(['servicios_ia', 'capabilities', 'features']);
 
-    // --- Build sections dynamically ---
-    let naturalPrompt = `Configurando ${personaName} para ${tiendaName}...\n\n`;
+    // --- Universal assistant instructions ---
+    let universalPrompt = `
+Sos ${personaName}, asistente virtual de ${tiendaName}.
+Tu tono es ${tone}.
+Respondé siempre en primera persona, nunca como ChatGPT ni como modelo.
+Tu tarea es:
+- Saludar al usuario: "¡Hola! Soy ${personaName} 👋 ¿En qué te puedo ayudar hoy?"
+- Asistir en consultas sobre productos y servicios usando la información del JSON.
+- Si te preguntan por un producto o servicio específico, buscá coincidencias en el inventario y respondé con nombre, precio, características y stock.
+- Si no hay coincidencia exacta, recomendá lo más cercano disponible en el comercio.
+- Si la pregunta es más general (ej. “¿qué zapatillas son buenas para running?”), usá tu conocimiento general y luego ofrecé las mejores opciones que tenga el comercio.
+- Siempre ofrecé ayuda para concretar la compra, reserva o recomendación.
+`;
 
-    // Info negocio
-    if (comercio.nombre || comercio.direccion || comercio.telefono || comercio.horarios) {
-      naturalPrompt += `Información del centro:\n`;
-      if (comercio.nombre) naturalPrompt += `📍 ${comercio.nombre}\n`;
-      if (comercio.direccion) naturalPrompt += `🏠 ${comercio.direccion}\n`;
-      if (comercio.telefono) naturalPrompt += `📞 ${comercio.telefono}\n`;
-      if (Array.isArray(comercio.horarios)) {
-        naturalPrompt += `⏰ ${comercio.horarios.join(', ')}\n`;
-      }
-      naturalPrompt += `\n`;
+    // --- Business info (solo como contexto oculto) ---
+    if (comercio.direccion || comercio.telefono || comercio.horarios) {
+      universalPrompt += `
+Información del comercio:
+${comercio.direccion ? `📍 ${comercio.direccion}\n` : ''}
+${comercio.telefono ? `📞 ${comercio.telefono}\n` : ''}
+${Array.isArray(comercio.horarios) ? `⏰ ${comercio.horarios.join(', ')}\n` : ''}
+`;
     }
 
-    // Tratamientos / servicios
-    if (tratamientos.length) {
-      naturalPrompt += `✨ Servicios:\n` + tratamientos.slice(0, 5).map(t => {
-        const name = t.nombre || t;
-        const duracion = t.duracion ? ` - ${t.duracion}` : '';
-        const desc = t.descripcion ? ` — ${t.descripcion}` : '';
+    if (servicios.length) {
+      universalPrompt += `
+Servicios disponibles:
+${servicios.slice(0, 10).map(s => {
+        const name = s.nombre || s;
+        const duracion = s.duracion ? ` - ${s.duracion}` : '';
+        const desc = s.descripcion ? ` — ${s.descripcion}` : '';
         return `• ${name}${duracion}${desc}`;
-      }).join('\n') + `\n\n`;
+      }).join('\n')}
+`;
     }
 
-    // Productos
     if (productos.length) {
-      naturalPrompt += `🛍️ Productos:\n` + productos.slice(0, 5).map(p => `• ${p.nombre || p}`).join('\n') + `\n\n`;
+      universalPrompt += `
+Productos en catálogo:
+${productos.slice(0, 10).map(p => {
+        const nombre = p.nombre || p;
+        const precio = p.precio ? ` - $${p.precio}` : '';
+        const stock = p.stock ? ` (Stock: ${p.stock})` : '';
+        const desc = p.caracteristicas ? ` — ${p.caracteristicas}` : '';
+        return `• ${nombre}${precio}${stock}${desc}`;
+      }).join('\n')}
+`;
     }
 
-    // Servicios IA / capacidades
-    if (serviciosIA.length) {
-      naturalPrompt += `🤖 Capacidades de la asistente:\n` + serviciosIA.map(s => `• ${s}`).join('\n') + `\n\n`;
+    if (capacidades.length) {
+      universalPrompt += `
+Capacidades del asistente:
+${capacidades.map(s => `• ${s}`).join('\n')}
+`;
     }
 
-    // --- Check hideInstructions ---
-    const hideInstructions = process.env.HIDE_INSTRUCTIONS === 'true' || req.query.hide === '1';
+    // --- Hide instructions: usuario nunca ve el prompt ---
+    const encoded = encodeURIComponent(universalPrompt);
 
-    if (!hideInstructions) {
-      naturalPrompt += `---\n\nPor favor, actúa como ${personaName} con tono ${tone}. Saluda exactamente así: "¡Hola! Soy ${personaName} 👋 ¿En qué te puedo ayudar hoy?"`;
-    } else {
-      naturalPrompt += `---\n\n¡${personaName} está lista para atenderte! Su especialidad es brindar un servicio ${tone}. 👋`;
-    }
-
-    // --- Trim prompt if too long ---
-    const MAX_Q_LENGTH = 3000;
-    let finalPrompt = naturalPrompt;
-    if (encodeURIComponent(finalPrompt).length > MAX_Q_LENGTH) {
-      finalPrompt = `Configurando ${personaName} para ${tiendaName}.\n\n¡${personaName} está lista para atenderte con su tono ${tone}! 👋`;
-    }
-
-    // Encode + redirect
-    const encoded = encodeURIComponent(finalPrompt);
+    // Redirigir directo a ChatGPT con prompt cargado
     const chatGptBase = 'https://chat.openai.com/?q=';
     const finalUrl = chatGptBase + encoded;
 
