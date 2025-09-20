@@ -1,4 +1,4 @@
-xport default async function handler(req, res) {
+export default async function handler(req, res) {
   try {
     const jsonUrl = req.query.json;
     if (!jsonUrl) return res.status(400).send('Missing json parameter');
