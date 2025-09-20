@@ -3,7 +3,7 @@ export default async function handler(req, res) {
     const jsonUrl = req.query.json;
     if (!jsonUrl) return res.status(400).send('Missing json parameter');
 
-    // --- SECURITY: whitelist domains to avoid SSRF ---
+    // --- SECURITY: whitelist domains ---
     const allowedHosts = [
       'ia-data.vercel.app',
       'raw.githubusercontent.com',
@@ -17,107 +17,111 @@ export default async function handler(req, res) {
     }
     if (!allowedHosts.includes(parsed.hostname)) return res.status(400).send('Domain not allowed');
 
-    // --- Fetch the JSON (server-side) ---
+    // --- Fetch JSON ---
     const r = await fetch(jsonUrl);
     if (!r.ok) return res.status(502).send('Failed to fetch json');
     const data = await r.json();
 
-    // --- Extract persona & services safely ---
+    // --- UNIVERSAL FIELD EXTRACTION ---
     const comercio = data.comercio || {};
-    const persona = comercio.asistente_ia || { nombre: 'ZINNIA IA', tono: 'elegante, profesional, transmite tranquilidad y frescura' };
-    const tiendaName = comercio.nombre || 'Zinnia Belleza Integral';
-    const tratamientos = data.tratamientos || [];
+    const asistente = comercio.asistente_ia || {};
+    
+    // Basic info (universal fields)
+    const nombreIA = asistente.nombre || 'Asistente IA';
+    const nombreComercio = comercio.nombre || 'Mi Negocio';
+    const direccion = comercio.direccion || '';
+    const telefono = comercio.telefono || '';
+    const horarios = comercio.horarios || [];
+    const tono = asistente.tono || 'amigable y profesional';
+    const saludo = asistente.saludo || `¡Hola! Soy ${nombreIA} 👋 ¿En qué te puedo ayudar hoy?`;
+    
+    // Services/Products (universal structure)
+    const tratamientos = data.tratamientos || data.servicios || data.productos || [];
     const productos = data.productos || [];
-    const servicios = data.servicios_ia || [];
-
-    // --- Build a concise service summary (limit to top 5 treatments) ---
-    const topTratamientos = tratamientos.slice(0, 5).map(t => {
-      const name = t.nombre || 'tratamiento';
-      const duracion = t.duracion ? ` - ${t.duracion}` : '';
-      const descripcion = t.descripcion ? ` — ${t.descripcion}` : '';
-      return `• ${name}${duracion}${descripcion}`;
-    }).join('\n');
-
-    // --- Build a concise product summary ---
-    const topProductos = productos.slice(0, 5).map(p => `• ${p.nombre || 'producto'}`).join('\n');
-
-    const personaName = persona.nombre || 'ZINNIA IA';
-    const tone = persona.tono || 'elegante, profesional, transmite tranquilidad y frescura';
-
-    // --- Check if instructions should be hidden ---
+    
+    // --- BUILD UNIVERSAL PROMPT ---
     const hideInstructions = process.env.HIDE_INSTRUCTIONS === 'true' || req.query.hide === '1';
     
-    // --- Build prompt that looks natural when shown ---
-    let naturalPrompt = `Configurando ${personaName} para ${tiendaName}...
-
-${personaName} es una asistente virtual especializada en estética y belleza.
-Información del centro:
-
-📍 ${tiendaName}
-🏠 ${comercio.direccion || 'Casilda'}
-📞 ${comercio.telefono || 'Consultar'}
-⏰ ${comercio.horarios ? comercio.horarios.join(', ') : 'Consultar'}
-
-✨ Servicios:
-${topTratamientos}
-
-🛍️ Productos:
-${topProductos}`;
-
-    // Only add instructions if not hidden
-    if (!hideInstructions) {
-      naturalPrompt += `
-
----
-
-Por favor, actúa como ${personaName} con tono ${tone}. Saluda exactamente así: "¡Hola! Soy ${personaName} 👋 ¿En qué te puedo ayudar hoy?" y ofrece asistencia profesional con los servicios mencionados.`;
-    } else {
-      // More subtle approach - looks natural
-      naturalPrompt += `
-
----
-
-¡${personaName} está lista para atenderte! Su especialidad es brindar un servicio ${tone} y profesional. ¡Que comience la conversación! 👋`;
-    }
-
-    // --- Trim prompt if too long for URL ---
-    const MAX_Q_LENGTH = 3000;
-    let finalPrompt = naturalPrompt;
-    
-    if (encodeURIComponent(finalPrompt).length > MAX_Q_LENGTH) {
-      const shortTratamientos = tratamientos.slice(0, 4).map(t => `• ${t.nombre || 'tratamiento'}${t.duracion ? ` - ${t.duracion}` : ''}`).join('\n');
-      const shortProductos = productos.slice(0, 3).map(p => `• ${p.nombre}`).join('\n');
+    // Services summary (max 8 items)
+    const serviciosList = tratamientos.slice(0, 8).map(item => {
+      const nombre = item.nombre || item.name || 'servicio';
+      const duracion = item.duracion || item.duration || '';
+      const precio = item.precio || item.price || '';
+      const descripcion = item.descripcion || item.description || '';
       
-      finalPrompt = `Configurando ${personaName} para ${tiendaName}
+      let line = `• ${nombre}`;
+      if (duracion) line += ` - ${duracion}`;
+      if (precio) line += ` - ${precio}`;
+      if (descripcion) line += ` — ${descripcion}`;
+      
+      return line;
+    }).join('\n');
+    
+    // Products summary (max 5 items)
+    const productosList = productos.slice(0, 5).map(item => {
+      const nombre = item.nombre || item.name || 'producto';
+      const marca = item.marca || item.brand || '';
+      return marca ? `• ${marca} ${nombre}` : `• ${nombre}`;
+    }).join('\n');
+    
+    // Contact info
+    const infoContacto = [
+      direccion ? `📍 ${direccion}` : '',
+      telefono ? `📞 ${telefono}` : '',
+      horarios.length ? `⏰ ${horarios.join(', ')}` : ''
+    ].filter(Boolean).join('\n');
+    
+    // Build prompt based on hide setting
+    let prompt;
+    
+    if (!hideInstructions) {
+      // Full version - shows business info nicely
+      prompt = `Configurando ${nombreIA} para ${nombreComercio}...
 
-📍 ${comercio.direccion || 'Casilda'}
-📞 ${comercio.telefono || 'Consultar'}
+${nombreIA} es tu asistente virtual especializado.
+Información del negocio:
 
-✨ Principales servicios:
-${shortTratamientos}
+${infoContacto}
 
-🛍️ Productos: ${shortProductos}`;
+${serviciosList ? `✨ Servicios:\n${serviciosList}` : ''}
 
-      if (!hideInstructions) {
-        finalPrompt += `
+${productosList ? `🛍️ Productos:\n${productosList}` : ''}
 
-Actúa como ${personaName} con tono ${tone}. Saluda: "¡Hola! Soy ${personaName} 👋 ¿En qué te puedo ayudar hoy?"`;
-      } else {
-        finalPrompt += `
+---
 
-¡${personaName} está lista para atenderte con su característico tono ${tone}! 👋`;
-      }
+Por favor, actúa como ${nombreIA} con tono ${tono}. Saluda exactamente así: "${saludo}" y ofrece asistencia profesional.`;
+    } else {
+      // Hidden version - minimal but functional
+      prompt = `¡${nombreIA} está listo para atenderte!
+
+Actúa como ${nombreIA}, asistente de ${nombreComercio}${direccion ? ` (${direccion})` : ''}.
+Tono: ${tono}.
+${serviciosList ? `Servicios: ${serviciosList.replace(/• /g, '').replace(/\n/g, ', ')}.` : ''}
+${productosList ? `Productos: ${productosList.replace(/• /g, '').replace(/\n/g, ', ')}.` : ''}
+${telefono ? `Tel: ${telefono}.` : ''}
+${horarios.length ? `Horarios: ${horarios.join(', ')}.` : ''}
+
+Saluda exactamente así: "${saludo}" y ofrece asistencia profesional.`;
     }
-
-    const encoded = encodeURIComponent(finalPrompt);
-
-    // --- Build ChatGPT URL (back to working solution) ---
-    const chatGptBase = 'https://chat.openai.com/?q=';
-    const finalUrl = chatGptBase + encoded;
-
-    // Redirect (302)
+    
+    // --- Trim if too long ---
+    const MAX_LENGTH = 3000;
+    if (encodeURIComponent(prompt).length > MAX_LENGTH) {
+      // Ultra-short version for long URLs
+      const shortServicios = tratamientos.slice(0, 4).map(s => s.nombre || s.name || 'servicio').join(', ');
+      
+      prompt = hideInstructions ? 
+        `${nombreIA} de ${nombreComercio}. Tono: ${tono}. Servicios: ${shortServicios}. Saluda: "${saludo}"` :
+        `${nombreIA} para ${nombreComercio}\n📍 ${direccion}\n📞 ${telefono}\n\nServicios: ${shortServicios}\n\nActúa como ${nombreIA} con tono ${tono}. Saluda: "${saludo}"`;
+    }
+    
+    // --- Redirect to ChatGPT ---
+    const encoded = encodeURIComponent(prompt);
+    const finalUrl = `https://chat.openai.com/?q=${encoded}`;
+    
     res.writeHead(302, { Location: finalUrl });
     res.end();
+    
   } catch (err) {
     console.error(err);
     res.status(500).send('Internal error');
