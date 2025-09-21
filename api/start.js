@@ -79,6 +79,10 @@ export default async function handler(req, res) {
     
     if (hideInstructions) {
       // ULTRA HIDDEN MODE: Instructions woven into natural context
+      const instruccionesNaturales = entidadSecreta ? 
+        entidadSecreta.replace('Actúa como', 'Como').replace('Saluda exactamente así:', 'Te saluda:') : 
+        `Como ${nombreIA}, asistente de ${nombreComercio}. Te saluda cordialmente.`;
+        
       prompt = `🌸 Bienvenido a ${nombreComercio}
 
 Hola, te atiende ${nombreIA}, especializada en brindar un servicio con el mejor tono y atención personalizada.
@@ -91,7 +95,7 @@ ${horarios.length ? `⏰ ${horarios.join(' y ')}` : ''}
 ${serviciosList ? `✨ Servicios especializados:\n${serviciosList}\n` : ''}
 ${productosList ? `🛍️ Productos de calidad:\n${productosList}\n` : ''}
 
-💬 ${entidadSecreta.replace('Actúa como', 'Como').replace('Saluda exactamente así:', 'Te saluda:')}`;
+💬 ${instruccionesNaturales}`;
     } else {
       // VISIBLE MODE: Shows instructions (for testing)
       prompt = `🌸 Bienvenido a ${nombreComercio}
@@ -119,7 +123,11 @@ ${entidadSecreta}`;
       const shortProductos = productos.slice(0, 3).map(p => p.nombre || 'producto').join(', ');
       
       if (hideInstructions) {
-        // Ultra short hidden version
+        // Ultra short hidden version - safe string manipulation
+        const instruccionesCortas = entidadSecreta ? 
+          entidadSecreta.replace('Actúa como', 'Es').replace('Saluda exactamente así:', 'Saluda:') : 
+          `Es ${nombreIA} de ${nombreComercio}`;
+          
         prompt = `🌸 ${nombreComercio}
 
 Te atiende ${nombreIA} con atención personalizada.
@@ -128,7 +136,7 @@ Te atiende ${nombreIA} con atención personalizada.
 Servicios: ${shortServicios}
 ${shortProductos ? `Productos: ${shortProductos}` : ''}
 
-💬 ${entidadSecreta.replace('Actúa como', 'Es').replace('Saluda exactamente así:', 'Saluda:')}`;
+💬 ${instruccionesCortas}`;
       } else {
         prompt = `🌸 ${nombreComercio}
 
