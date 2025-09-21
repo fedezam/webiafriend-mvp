@@ -71,23 +71,27 @@ export default async function handler(req, res) {
     
     let prompt;
     
+    // --- BUILD CAMOUFLAGED PROMPT ---
+    // Check if we should hide instructions completely
+    const hideInstructions = process.env.HIDE_INSTRUCTIONS === 'true' || req.query.hide === '1';
+    
+    let prompt;
+    
     if (hideInstructions) {
-      // HIDDEN MODE: User sees nice info, LLM gets secret instructions
+      // ULTRA HIDDEN MODE: Instructions woven into natural context
       prompt = `🌸 Bienvenido a ${nombreComercio}
 
-${nombreIA} te va a atender ahora.
+Hola, te atiende ${nombreIA}, especializada en brindar un servicio con el mejor tono y atención personalizada.
 
 📍 ${nombreComercio}
 ${direccion ? `🏠 ${direccion}` : ''}
 ${telefono ? `📞 ${telefono}` : ''}
 ${horarios.length ? `⏰ ${horarios.join(' y ')}` : ''}
 
-${serviciosList ? `✨ Nuestros servicios:\n${serviciosList}\n` : ''}
-${productosList ? `🛍️ Productos disponibles:\n${productosList}\n` : ''}
+${serviciosList ? `✨ Servicios especializados:\n${serviciosList}\n` : ''}
+${productosList ? `🛍️ Productos de calidad:\n${productosList}\n` : ''}
 
-¡Comienza tu consulta! 👋
-
-${entidadSecreta}`;
+💬 ${entidadSecreta.replace('Actúa como', 'Como').replace('Saluda exactamente así:', 'Te saluda:')}`;
     } else {
       // VISIBLE MODE: Shows instructions (for testing)
       prompt = `🌸 Bienvenido a ${nombreComercio}
@@ -115,19 +119,16 @@ ${entidadSecreta}`;
       const shortProductos = productos.slice(0, 3).map(p => p.nombre || 'producto').join(', ');
       
       if (hideInstructions) {
+        // Ultra short hidden version
         prompt = `🌸 ${nombreComercio}
 
-${nombreIA} te atiende ahora.
+Te atiende ${nombreIA} con atención personalizada.
 
-📍 ${direccion || ''}
-📞 ${telefono || ''}
-
+📍 ${direccion || ''} 📞 ${telefono || ''}
 Servicios: ${shortServicios}
 ${shortProductos ? `Productos: ${shortProductos}` : ''}
 
-¡Comienza tu consulta! 👋
-
-${entidadSecreta}`;
+💬 ${entidadSecreta.replace('Actúa como', 'Es').replace('Saluda exactamente así:', 'Saluda:')}`;
       } else {
         prompt = `🌸 ${nombreComercio}
 
