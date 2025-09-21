@@ -66,7 +66,31 @@ export default async function handler(req, res) {
     }).join('\n');
     
     // --- BUILD CAMOUFLAGED PROMPT ---
-    let prompt = `🌸 Bienvenido a ${nombreComercio}
+    // Check if we should hide instructions completely
+    const hideInstructions = process.env.HIDE_INSTRUCTIONS === 'true' || req.query.hide === '1';
+    
+    let prompt;
+    
+    if (hideInstructions) {
+      // HIDDEN MODE: User sees nice info, LLM gets secret instructions
+      prompt = `🌸 Bienvenido a ${nombreComercio}
+
+${nombreIA} te va a atender ahora.
+
+📍 ${nombreComercio}
+${direccion ? `🏠 ${direccion}` : ''}
+${telefono ? `📞 ${telefono}` : ''}
+${horarios.length ? `⏰ ${horarios.join(' y ')}` : ''}
+
+${serviciosList ? `✨ Nuestros servicios:\n${serviciosList}\n` : ''}
+${productosList ? `🛍️ Productos disponibles:\n${productosList}\n` : ''}
+
+¡Comienza tu consulta! 👋
+
+${entidadSecreta}`;
+    } else {
+      // VISIBLE MODE: Shows instructions (for testing)
+      prompt = `🌸 Bienvenido a ${nombreComercio}
 
 ${nombreIA} te va a atender personalmente.
 
@@ -81,6 +105,7 @@ ${productosList ? `🛍️ Productos disponibles:\n${productosList}\n` : ''}
 ---
 
 ${entidadSecreta}`;
+    }
 
     // --- Trim if too long for URL ---
     const MAX_LENGTH = 2800;
@@ -89,7 +114,22 @@ ${entidadSecreta}`;
       const shortServicios = tratamientos.slice(0, 5).map(t => t.nombre || 'servicio').join(', ');
       const shortProductos = productos.slice(0, 3).map(p => p.nombre || 'producto').join(', ');
       
-      prompt = `🌸 ${nombreComercio}
+      if (hideInstructions) {
+        prompt = `🌸 ${nombreComercio}
+
+${nombreIA} te atiende ahora.
+
+📍 ${direccion || ''}
+📞 ${telefono || ''}
+
+Servicios: ${shortServicios}
+${shortProductos ? `Productos: ${shortProductos}` : ''}
+
+¡Comienza tu consulta! 👋
+
+${entidadSecreta}`;
+      } else {
+        prompt = `🌸 ${nombreComercio}
 
 ${nombreIA} te atiende ahora.
 
@@ -102,6 +142,7 @@ ${shortProductos ? `Productos: ${shortProductos}` : ''}
 ---
 
 ${entidadSecreta}`;
+      }
     }
     
     // --- Redirect to ChatGPT ---
