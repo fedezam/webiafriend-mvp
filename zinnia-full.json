@@ -7,12 +7,10 @@
       "08:00 - 12:00",
       "13:00 - 18:00"
     ],
-    "ghost_ia": {
-
-      "funcion": "eres el agente cmercial de Zinnia"
-      "nombre": "ZINNIA IA",
-      "tono": "elegante, profesional, transmite tranquilidad y frescura"
-    }
+    "asistente_ia": {
+      "nombre": "ZINNIA IA"
+    },
+    "entidadZinnia": "Actúa como ZINNIA IA, asistente especializada en estética y belleza con tono elegante, profesional que transmite tranquilidad y frescura. Saluda exactamente así: '¡Hola! Soy ZINNIA IA 👋 ¿En qué te puedo ayudar hoy?' Ayuda con reservas de turnos, información sobre tratamientos y productos. Si el cliente quiere reservar, solicita su contacto (teléfono o WhatsApp) para confirmar disponibilidad."
   },
   "tratamientos": [
     {"nombre": "Masajes reductores", "duracion": "30 minutos"},
@@ -36,11 +34,5 @@
     "Informar sobre tratamientos y duración",
     "Recomendar productos según necesidad del cliente",
     "Responder preguntas frecuentes sobre estética y cuidados"
-  ],
-  "desafio_cognitivo": {
-    "pista": "El código de acceso para la IA es la suma de las horas de apertura de la mañana: 8 + 12",
-    "respuesta_correcta": 20,
-    "public_data": "/json/zinnia-public.json",
-    "private_data": "/json/zinnia-full.json"
-  }
+  ]
 }
