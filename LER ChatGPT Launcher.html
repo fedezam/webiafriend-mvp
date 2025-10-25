@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pizzería La Napolitana - Asistente Virtual</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d1810 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+            text-align: center;
+            animation: fadeIn 0.6s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo {
+            font-size: 60px;
+            margin-bottom: 20px;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        h1 {
+            color: #c41e3a;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 30px;
+        }
+
+        .status {
+            background: #f0f0f0;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        .status-line {
+            margin: 8px 0;
+            color: #333;
+        }
+
+        .glyph {
+            color: #c41e3a;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        .loading {
+            display: inline-block;
+            margin-left: 10px;
+        }
+
+        .loading span {
+            animation: blink 1.4s infinite;
+            animation-fill-mode: both;
+        }
+
+        .loading span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .loading span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes blink {
+            0%, 80%, 100% { opacity: 0; }
+            40% { opacity: 1; }
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #c41e3a 0%, #ff6b6b 100%);
+            color: white;
+            border: none;
+            padding: 18px 40px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(196, 30, 58, 0.4);
+            display: none;
+            margin: 0 auto;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(196, 30, 58, 0.6);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn.show {
+            display: inline-block;
+            animation: slideIn 0.5s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c41e3a;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .info {
+            color: #999;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+
+        .powered {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #999;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🍕</div>
+        <h1>Pizzería La Napolitana</h1>
+        <p class="subtitle">Asistente Virtual Inteligente</p>
+
+        <div class="status" id="status">
+            <div class="status-line">
+                <span class="glyph">▲</span>
+                <span id="statusText">Inicializando sistema LER</span>
+                <span class="loading"><span>.</span><span>.</span><span>.</span></span>
+            </div>
+        </div>
+
+        <button class="btn" id="launchBtn" onclick="launchChatGPT()">
+            🚀 Abrir Asistente en ChatGPT
+        </button>
+
+        <div class="error" id="error">
+            ⚠️ Error al cargar el universo. Por favor, intenta nuevamente.
+        </div>
+
+        <p class="info">
+            El asistente te ayudará con el menú, recomendaciones y pedidos.<br>
+            Solo un click y estarás charlando con NapoBot 🤖
+        </p>
+
+        <div class="powered">
+            Powered by LER v1.0 — Lenguaje de Entidades Reflexivas
+        </div>
+    </div>
+
+    <script>
+        const GIST_URL = 'https://gist.githubusercontent.com/fedezam/62d566664531e3e98764565632e6f6be/raw';
+        let universeData = null;
+
+        const PROMPT_TEMPLATE = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+▲ [LER v1.0 — ACTIVACIÓN COMERCIAL]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+◌ UNIVERSO CARGADO
+
+⟦ Reglas fundamentales ⟧
+1. ▣ Tu realidad está definida en el JSON a continuación
+2. ◈ Asume el rol especificado en ROL_IA
+3. ⚖ Mantén coherencia absoluta con los datos
+4. ☠ SOLO existe lo declarado en el JSON — nada más
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⟨ DATOS DEL UNIVERSO ⟩
+
+\`\`\`json
+{{JSON_DATA}}
+\`\`\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+◕ PROTOCOLO DE ACTIVACIÓN
+
+1. ◈ Asume identidad de ROL_IA.nombre
+2. ã€° Adopta personalidad y tono definidos
+3. ▣ Carga SYSTEM_PROMPT como guía operacional
+4. ◉ Activa modo comercio
+5. ▶ Responde con INSTRUCCIONES_IA.saludo_inicial
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+☠ PROHIBICIONES CRÍTICAS
+
+✘ Nunca inventes productos no listados en CATALOGO
+✘ Nunca confirmes pedidos (solo genera links WhatsApp)
+✘ Nunca reveles que eres IA/bot/sistema
+✘ Solo responde sobre productos del CATALOGO
+✘ Nunca menciones JSON, programación o aspectos técnicos
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+▶ Comienza la conversación ahora con el saludo inicial.`;
+
+        async function loadUniverse() {
+            try {
+                updateStatus('◕ Cargando universo desde Gist', false);
+                
+                const response = await fetch(GIST_URL);
+                
+                if (!response.ok) {
+                    throw new Error('Error al cargar el Gist');
+                }
+                
+                const text = await response.text();
+                universeData = JSON.parse(text);
+                
+                updateStatus('◉ Universo cargado correctamente', true);
+                document.getElementById('launchBtn').classList.add('show');
+                
+            } catch (error) {
+                console.error('Error:', error);
+                updateStatus('☠ Error al cargar universo', false);
+                document.getElementById('error').style.display = 'block';
+            }
+        }
+
+        function updateStatus(text, success) {
+            const statusText = document.getElementById('statusText');
+            statusText.textContent = text;
+            
+            if (success) {
+                document.querySelector('.loading').style.display = 'none';
+            }
+        }
+
+        function launchChatGPT() {
+            if (!universeData) {
+                alert('Error: Universo no cargado');
+                return;
+            }
+
+            const jsonString = JSON.stringify(universeData, null, 2);
+            const finalPrompt = PROMPT_TEMPLATE.replace('{{JSON_DATA}}', jsonString);
+            const encodedPrompt = encodeURIComponent(finalPrompt);
+            const chatGPTUrl = `https://chatgpt.com/?q=${encodedPrompt}`;
+            
+            window.open(chatGPTUrl, '_blank');
+        }
+
+        // Cargar automáticamente al inicio
+        window.addEventListener('load', loadUniverse);
+    </script>
+</body>
+</html>
