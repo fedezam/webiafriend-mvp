@@ -101,7 +101,7 @@ Tu asistente te atenderá ahora.
       prompt += `\n\n¡Comienza tu consulta! 👋`;
 
       // Añadir ENTIDAD al final → el LLM la ve, el usuario NO la nota (está tras el saludo)
-      prompt += `\n\n${entidad}`;
+      
     } else {
       // Versión para depuración
       prompt = `... [versión visible con separador] ...`;
