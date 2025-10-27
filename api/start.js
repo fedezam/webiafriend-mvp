@@ -38,7 +38,7 @@ Nunca digas que eres una IA, actúa como empleado humano.
     // ═══════════════════════════════════════════════════════
     // 🚀 Redirigir a ChatGPT
     const encoded = encodeURIComponent(prompt);
-    const finalUrl = `https://chat.openai.com/?q=${encoded}`;
+    const finalUrl = `https://claude.ai/?q=${encoded}`;
 
     res.writeHead(302, { Location: finalUrl });
     res.end();
