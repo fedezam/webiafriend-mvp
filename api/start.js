@@ -4,47 +4,50 @@
 
 export default async function handler(req, res) {
   try {
-    const jsonUrl = req.query.json || 'https://raw.githubusercontent.com/fedezam/webiafriend-mvp/refs/heads/main/pizeria.json';
-    
-    // ═══════════════════════════════════════════════════════
-    // 🔒 Seguridad: whitelist
+    const jsonUrl = req.query.json;
+    const hideInstructions = req.query.hide === '1';
+
+    if (!jsonUrl) return res.status(400).send('Missing json parameter');
+
+    // --- Seguridad: whitelist de dominios ---
     const allowedHosts = [
+      'ia-data.vercel.app',
       'raw.githubusercontent.com',
-      'gist.githubusercontent.com',
-      'webiafriend-mvp.vercel.app'
+      'gist.githubusercontent.com'
     ];
+    let parsed;
+    try { parsed = new URL(jsonUrl); } catch(e) { return res.status(400).send('Invalid json url'); }
+    if (!allowedHosts.includes(parsed.hostname)) return res.status(400).send('Domain not allowed');
+
+    // --- Fetch JSON ---
+    const r = await fetch(jsonUrl);
+    if (!r.ok) return res.status(502).send('Failed to fetch JSON');
+    const data = await r.json();
+
+    // --- Construir mini RM y prompt visible ---
+    const comercio = data.comercio || {};
+    const personaName = data.ia_persona?.nombre || 'Asistente';
+    const tiendaName = comercio.nombre || 'Comercio';
     
-    const parsed = new URL(jsonUrl);
-    if (!allowedHosts.includes(parsed.hostname)) {
-      return res.status(400).send(`❌ Domain not allowed: ${parsed.hostname}`);
-    }
+    const miniRM = `Meta: Ayúdame con esto, las instrucciones están en ${jsonUrl}`;
+    const visiblePrompt = `Iniciando IA de: ${tiendaName} 🍕`;
 
-    // ═══════════════════════════════════════════════════════
-    // 🔹 Construir prompt mínimo
-    // En vez de enviar todo el JSON, le pasamos solo la URL
-    const prompt = `
-🌸 Bienvenido a tu asistente virtual
+    const finalPrompt = miniRM + "\n\n" + visiblePrompt;
 
-Lee los datos desde este JSON en vivo:
-${jsonUrl}
+    // --- Codificar para URL ---
+    const encodedPrompt = encodeURIComponent(finalPrompt);
 
-Genera respuestas solo basadas en este catálogo. 
-Mantén un tono profesional y amigable. 
-No inventes productos ni servicios que no estén en el JSON.
-Nunca digas que eres una IA, actúa como empleado humano.
-¡Comienza tu consulta! 👋
-`;
+    // --- Link a ChatGPT ---
+    const chatGptBase = 'https://chat.openai.com/?q=';
+    const finalUrl = chatGptBase + encodedPrompt;
 
-    // ═══════════════════════════════════════════════════════
-    // 🚀 Redirigir a ChatGPT
-    const encoded = encodeURIComponent(prompt);
-    const finalUrl = `https://claude.ai/?q=${encoded}`;
-
+    // --- Redirigir ---
     res.writeHead(302, { Location: finalUrl });
     res.end();
 
   } catch (err) {
-    console.error('❌ Error en /api/ai-start:', err);
-    res.status(500).send(`❌ Internal error: ${err.message}`);
+    console.error(err);
+    res.status(500).send('Internal error');
   }
 }
+
