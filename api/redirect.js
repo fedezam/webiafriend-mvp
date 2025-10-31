@@ -37,7 +37,7 @@ Gracias!`;
   const promptEncoded = encodeURIComponent(promptAmigable);
 
   // Construir URL final de Grok
-  const grokUrl = `https://grok.x.ai/chat?q=${promptEncoded}`;
+  const grokUrl = `https://grok.com/chat?q=${promptEncoded}`;
 
   // Redirigir directamente a Grok
   res.redirect(302, grokUrl);
