@@ -9,42 +9,25 @@ export default async function handler(req, res) {
 
     if (!jsonUrl) return res.status(400).send('Missing json parameter');
 
-    // --- Seguridad: whitelist de dominios ---
+    // --- Whitelist dominios ---
     const allowedHosts = [
-  'ia-data.vercel.app',
-  'raw.githubusercontent.com',
-  'gist.githubusercontent.com',
-  'oigwwzzmvibflie8.public.blob.vercel-storage.com'
-];
-
+      'oigwwzzmvibflie8.public.blob.vercel-storage.com'
     ];
+
     let parsed;
-    try { parsed = new URL(jsonUrl); } catch(e) { return res.status(400).send('Invalid json url'); }
+    try { parsed = new URL(jsonUrl); } catch(e) { return res.status(400).send('Invalid JSON URL'); }
     if (!allowedHosts.includes(parsed.hostname)) return res.status(400).send('Domain not allowed');
 
-    // --- Fetch JSON ---
-    const r = await fetch(jsonUrl);
-    if (!r.ok) return res.status(502).send('Failed to fetch JSON');
-    const data = await r.json();
-
-    // --- Construir mini RM y prompt visible ---
-    const comercio = data.comercio || {};
-    const personaName = data.ia_persona?.nombre || 'Asistente';
-    const tiendaName = comercio.nombre || 'Comercio';
-    
+    // --- Construir mini RM + prompt visible ---
     const miniRM = `Meta: Ayúdame con esto, las instrucciones están en ${jsonUrl}`;
-    const visiblePrompt = `Iniciando IA de: ${tiendaName} 🍕`;
-
+    const visiblePrompt = "Iniciando IA de: Pizzería La Napolitana 🍕";
     const finalPrompt = miniRM + "\n\n" + visiblePrompt;
 
-    // --- Codificar para URL ---
-    const encodedPrompt = encodeURIComponent(finalPrompt);
-
-    // --- Link a ChatGPT ---
+    // --- Codificar y redirigir a ChatGPT ---
     const chatGptBase = 'https://chat.openai.com/?q=';
+    const encodedPrompt = encodeURIComponent(finalPrompt);
     const finalUrl = chatGptBase + encodedPrompt;
 
-    // --- Redirigir ---
     res.writeHead(302, { Location: finalUrl });
     res.end();
 
@@ -53,4 +36,3 @@ export default async function handler(req, res) {
     res.status(500).send('Internal error');
   }
 }
-
