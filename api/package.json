@@ -1,9 +1,15 @@
 {
   "name": "webiafriend-mvp",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "Redirección segura y amigable hacia Grok (WebIA Friend MVP)",
+  "type": "module",
+  "main": "api/redirect.js",
   "scripts": {
+    "dev": "node api/redirect.js",
     "start": "node api/redirect.js"
   },
-  "dependencies": {}
+  "dependencies": {},
+  "engines": {
+    "node": ">=18"
+  }
 }
