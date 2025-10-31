@@ -10,7 +10,7 @@ export default function handler(req, res) {
     return res.status(400).json({ 
       error: 'Falta el parámetro "json"',
       uso: '/api/redirect?json=https://tu-storage.com/comercio.json',
-      ejemplo: 'https://webiafriend-mvp.vercel.app/api/redirect?json=https://oigwwzzmvibflie8.public.blob.vercel-storage.com/comercio_abc123.json'
+      ejemplo: 'https://webiafriend-mvp.vercel.app/api/redirect?json=https://oigwwzzmvibflie8.public.blob.vercel-storage.com/comercio_abc1234.json'
     });
   }
 
