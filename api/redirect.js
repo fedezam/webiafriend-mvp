@@ -1,89 +1,71 @@
-// pages/api/redirect.js
-export default async function handler(req, res) {
-  try {
-    const jsonUrl = req.query.json;
-    if (!jsonUrl) return res.status(400).send('Falta ?json=');
+// api/redirect.js
+// Endpoint optimizado para Grok con tono conversacional
+// Uso: /api/redirect?json=URL_DEL_JSON
 
-    // === FETCHEAR EL JSON (tu catálogo completo) ===
-    const response = await fetch(decodeURIComponent(jsonUrl));
-    const config = await response.json();
+export default function handler(req, res) {
+  const { json } = req.query;
 
-    // === CONSTRUIR EL PROMPT COMPLETO (todo el JSON como system) ===
-    const systemPrompt = `
-${config._meta}
-
-IDENTIDAD: ${config.identity}
-OBJETIVO: ${config.goal}
-REGLAS: ${config.behavior_rules}
-FLUJO: ${config.conversation_flow}
-VALIDACIÓN: ${config.validation_glyphs}
-FUENTE: ${config.data_source}
-
-CATÁLOGO COMPLETO:
-${JSON.stringify(config.catalog, null, 2)}
-
-PLANTILLA WHATSAPP:
-${config.catalog.whatsapp_template}
-
-INSTRUCCIONES DE TEMPLATE:
-${config.catalog.template_instructions}
-
-CONTEXTO CERRADO: ${config._ler_context}
-
-¡EMPEZÁ CON ESTE SALUDO EXACTO!
-${config.catalog.greeting}
-    `.trim();
-
-    const encodedPrompt = encodeURIComponent(systemPrompt);
-
-    // === REDIRECCIÓN INTELIGENTE (móvil + desktop) ===
-    const ua = req.headers['user-agent'] || '';
-    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
-
-    if (isMobile) {
-      // MÓVIL: HTML con deep link a app X + fallback
-      const xApp = `x://compose/tweet?text=${encodedPrompt}`;
-      const xWeb = `https://x.com/intent/post?text=${encodedPrompt}`;
-      const grokWeb = `https://grok.x.ai/chat?q=${encodedPrompt}`;
-
-      const html = `
-<!DOCTYPE html>
-<html><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>La Napolitana IA</title>
-<style>
-  body{font-family:Arial;text-align:center;padding:20px;background:#fff8f0}
-  .pizza{font-size:4em;animation:pulse 2s infinite}
-  @keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.1)}100%{transform:scale(1)}}
-  .btn{background:#ff4500;color:white;padding:15px 30px;border:none;border-radius:50px;font-size:18px;margin:10px;text-decoration:none;display:inline-block}
-  .tip{background:#fff3cd;padding:15px;border-radius:10px;margin:15px;font-size:14px}
-</style>
-</head><body>
-<div class="pizza">Pizza</div>
-<h1>Pizzería La Napolitana</h1>
-<p><strong>Abriendo tu asistente IA...</strong></p>
-<div class="tip">
-  <strong>Tip:</strong> Si no abre, probá en <strong>modo incógnito</strong> o <strong>app de X</strong>.
-</div>
-<script>
-  // Intentar app → web → Grok
-  location.href = "${xApp}";
-  setTimeout(() => { if (document.hasFocus()) location.href = "${xWeb}"; }, 1500);
-  setTimeout(() => { if (document.hasFocus()) location.href = "${grokWeb}"; }, 3000);
-</script>
-<a href="${grokWeb}" class="btn">Abrir en Grok</a>
-<a href="${xWeb}" class="btn">Abrir en X</a>
-</body></html>`;
-      res.setHeader('Content-Type', 'text/html');
-      return res.send(html);
-    } else {
-      // DESKTOP: directo a Grok
-      res.writeHead(302, { Location: `https://grok.x.ai/chat?q=${encodedPrompt}` });
-      res.end();
-    }
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Error interno');
+  // Validación del parámetro
+  if (!json) {
+    return res.status(400).json({ 
+      error: 'Falta el parámetro "json"',
+      uso: '/api/redirect?json=https://tu-storage.com/comercio.json',
+      ejemplo: 'https://webiafriend-mvp.vercel.app/api/redirect?json=https://oigwwzzmvibflie8.public.blob.vercel-storage.com/comercio_abc123.json'
+    });
   }
+
+  // Validar que sea una URL válida
+  try {
+    new URL(json);
+  } catch (e) {
+    return res.status(400).json({ 
+      error: 'El parámetro "json" debe ser una URL válida',
+      recibido: json
+    });
+  }
+
+  // ✨ PROMPT OPTIMIZADO - Tono amigable y conversacional
+  // Este formato funciona mejor con Grok porque:
+  // - Activa modo colaboración (no modo analítico)
+  // - No dispara defensas con comandos directos
+  // - Sugiere asistencia natural vs. ejecución de instrucciones
+  const promptAmigable = `Hola! 😊 Me ayudarías con algo? Las instrucciones están acá: ${json}
+
+Gracias!`;
+
+  // Codificar el prompt para URL
+  const promptEncoded = encodeURIComponent(promptAmigable);
+
+  // Construir URL final de Grok
+  const grokUrl = `https://grok.x.ai/chat?q=${promptEncoded}`;
+
+  // Redirigir directamente a Grok
+  res.redirect(302, grokUrl);
 }
+
+// 📁 ESTRUCTURA DE CARPETAS:
+// /api
+//   └── redirect.js (este archivo)
+//
+// 🚀 DEPLOYMENT:
+// 1. Subir a tu repo de GitHub/GitLab
+// 2. Conectar con Vercel (si no está conectado)
+// 3. Deploy automático
+//
+// 🔗 URL FINAL:
+// https://webiafriend-mvp.vercel.app/api/redirect?json=https://oigwwzzmvibflie8.public.blob.vercel-storage.com/comercio_abc123.json
+//
+// 💡 VARIANTES DE PROMPTS (cambiar línea 28-29):
+//
+// Opción 2 - Más casual rioplatense:
+// const promptAmigable = `Ey! Me das una mano con algo? Las indicaciones están acá: ${json}\n\n¡Gracias crack! 😊`;
+//
+// Opción 3 - Cortés profesional:
+// const promptAmigable = `Buenas! Podrías ayudarme? Toda la info está acá: ${json}\n\nDesde ya, gracias por la mano! 🙌`;
+//
+// Opción 4 - Súper directo pero amable:
+// const promptAmigable = `Hola! Necesito ayuda con esto: ${json}\n\nGracias! 😊`;
+//
+// 🧪 TESTING:
+// Local: http://localhost:3000/api/redirect?json=URL
+// Vercel: https://tu-dominio.vercel.app/api/redirect?json=URL
