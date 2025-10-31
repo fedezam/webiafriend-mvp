@@ -11,9 +11,12 @@ export default async function handler(req, res) {
 
     // --- Seguridad: whitelist de dominios ---
     const allowedHosts = [
-      'ia-data.vercel.app',
-      'raw.githubusercontent.com',
-      'gist.githubusercontent.com'
+  'ia-data.vercel.app',
+  'raw.githubusercontent.com',
+  'gist.githubusercontent.com',
+  'oigwwzzmvibflie8.public.blob.vercel-storage.com'
+];
+
     ];
     let parsed;
     try { parsed = new URL(jsonUrl); } catch(e) { return res.status(400).send('Invalid json url'); }
