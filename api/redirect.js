@@ -29,7 +29,7 @@ export default function handler(req, res) {
   // - Activa modo colaboración (no modo analítico)
   // - No dispara defensas con comandos directos
   // - Sugiere asistencia natural vs. ejecución de instrucciones
-  const promptAmigable = `Hola! 😊 Me ayudarías con algo? Las instrucciones están acá: ${json}
+  const promptAmigable = `ayudame con esto, sigue las instrucines de aqui: ${json}
 
 Gracias!`;
 
