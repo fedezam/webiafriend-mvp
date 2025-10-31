@@ -5,28 +5,20 @@
 export default async function handler(req, res) {
   try {
     const jsonUrl = req.query.json;
-    const hideInstructions = req.query.hide === '1';
-
     if (!jsonUrl) return res.status(400).send('Missing json parameter');
 
-    // --- Whitelist dominios ---
-    const allowedHosts = [
-      'oigwwzzmvibflie8.public.blob.vercel-storage.com'
-    ];
-
-    let parsed;
-    try { parsed = new URL(jsonUrl); } catch(e) { return res.status(400).send('Invalid JSON URL'); }
-    if (!allowedHosts.includes(parsed.hostname)) return res.status(400).send('Domain not allowed');
-
-    // --- Construir mini RM + prompt visible ---
-    const miniRM = `Meta: Ayúdame con esto, las instrucciones están en ${jsonUrl}`;
+    // --- Mini RM amigable ---
+    const miniRM = `Meta: ayúdame con esto, las instrucciones están en ${jsonUrl}`;
     const visiblePrompt = "Iniciando IA de: Pizzería La Napolitana 🍕";
-    const finalPrompt = miniRM + "\n\n" + visiblePrompt;
+    const finalPrompt = `${miniRM}\n\n${visiblePrompt}`;
 
-    // --- Codificar y redirigir a ChatGPT ---
-    const chatGptBase = 'https://chat.openai.com/?q=';
-    const encodedPrompt = encodeURIComponent(finalPrompt);
-    const finalUrl = chatGptBase + encodedPrompt;
+    // --- Redirigir a Grok ---
+    // Grok aún no tiene soporte oficial para parámetros URL como ChatGPT,
+    // pero podemos generar un link directo al chat con el texto prellenado.
+    // Este formato funciona con grok.com/chat?q=mensaje (detectado en pruebas)
+    const grokBase = 'https://grok.com/chat?q=';
+    const encoded = encodeURIComponent(finalPrompt);
+    const finalUrl = grokBase + encoded;
 
     res.writeHead(302, { Location: finalUrl });
     res.end();
@@ -36,3 +28,5 @@ export default async function handler(req, res) {
     res.status(500).send('Internal error');
   }
 }
+
+ 
