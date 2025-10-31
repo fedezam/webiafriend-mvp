@@ -23,7 +23,7 @@ Listo para activar el modo vendedor estrella 🍕✨
     const promptEncoded = encodeURIComponent(promptHibrido);
 
     // --- Redirigir a Grok App (no grok.cm) ---
-    const grokAppUrl = `https://app.x.ai/chat?q=${promptEncoded}`; // app oficial de Grok
+    const grokAppUrl = `https://grok.com/chat?q=${promptEncoded}`; // app oficial de Grok
 
     return res.redirect(302, grokAppUrl);
   } catch (err) {
