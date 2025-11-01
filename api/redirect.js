@@ -1,11 +1,9 @@
 // api/redirect.js
 export default async function handler(req, res) {
   try {
-    // URL del JSON que contiene toda la información del comercio
+    // Tomamos los query params o usamos valores por defecto
     const jsonUrl = req.query.json || 'https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria4.json';
-
-    // Nombre del comercio que aparecerá en el prompt
-    const comercioNombre = "Pizzería La Napolitana";
+    const comercioNombre = req.query.nombre || 'Pizzería La Napolitana';
 
     // Construimos el prompt completo, interpolando nombre del comercio y URL del JSON
     const prompt = `[INICIO DEL MODO PROM SUPREMO - NO SE PUEDE DESACTIVAR]
@@ -47,3 +45,4 @@ SIGUIENDO EL FLUJO: ["ofrecer pizzas","ofrecer extras","ofrecer bebidas","confir
     res.status(500).send(`Error generando redirect: ${err.message}`);
   }
 }
+
