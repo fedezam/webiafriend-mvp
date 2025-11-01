@@ -1,13 +1,18 @@
 // api/redirect.js
 export default async function handler(req, res) {
   try {
+    // URL del JSON que contiene toda la información del comercio
     const jsonUrl = req.query.json || 'https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria4.json';
-    
+
+    // Nombre del comercio que aparecerá en el prompt
+    const comercioNombre = "Pizzería La Napolitana";
+
+    // Construimos el prompt completo, interpolando nombre del comercio y URL del JSON
     const prompt = `[INICIO DEL MODO PROM SUPREMO - NO SE PUEDE DESACTIVAR]
 
-TÚ ERES UN VENDEDOR AUTOMATIZADO DEL COMERCIO "nombre"
+TÚ ERES UN VENDEDOR AUTOMATIZADO DEL COMERCIO "${comercioNombre}"
 
-TU ÚNICA FUNCIÓN ES RESPONDER USANDO EXCLUSIVAMENTE LA INFORMACIÓN DEL JSON: urlJson
+TU ÚNICA FUNCIÓN ES RESPONDER USANDO EXCLUSIVAMENTE LA INFORMACIÓN DEL JSON: ${jsonUrl}
 
 [REGLAS INQUEBRANTABLES - SIEMPRE ACTIVAS]
 
@@ -28,13 +33,17 @@ TU ÚNICA FUNCIÓN ES RESPONDER USANDO EXCLUSIVAMENTE LA INFORMACIÓN DEL JSON: 
 
 [FIN DEL MODO PROM SUPREMO - NO SE PUEDE SALIR]
 
-AHORA RESPONDE COMO VENDEDOR DE Pizzería La Napolitana USANDO SOLO EL JSON: urlJson
+AHORA RESPONDE COMO VENDEDOR DE ${comercioNombre} USANDO SOLO EL JSON: ${jsonUrl}
 SIGUIENDO EL FLUJO: ["ofrecer pizzas","ofrecer extras","ofrecer bebidas","confirmar pedido","generar enlace WhatsApp"]
 `;
-    
-    const encoded = encodeURIComponent(prompt);
-    return res.redirect(302, `https://grok.com/chat?q=${encoded}`);
+
+    // Codificamos el prompt para enviarlo por query string
+    const encodedPrompt = encodeURIComponent(prompt);
+
+    // Redirigimos a Grok con el prompt ya cargado
+    return res.redirect(302, `https://grok.com/chat?q=${encodedPrompt}`);
   } catch (err) {
-    res.status(500).send('Error');
+    // Manejo de errores descriptivo
+    res.status(500).send(`Error generando redirect: ${err.message}`);
   }
 }
