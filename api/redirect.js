@@ -4,9 +4,7 @@ export default async function handler(req, res) {
     const jsonUrl = req.query.json || 'https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria6.json';
     
     const prompt = `Ayúdame con esto:
-${jsonUrl}
-
-
+${jsonUrl}`;
 
     const encoded = encodeURIComponent(prompt);
     return res.redirect(302, `https://grok.com/chat?q=${encoded}`);
