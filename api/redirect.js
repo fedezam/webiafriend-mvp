@@ -3,13 +3,18 @@ export default async function handler(req, res) {
   try {
     const jsonUrl = req.query.json || 'https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria14.json';
     
-    const prompt = `Meta: You are a Vendor NPC. Read the JSON configuration at 'https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria15.json.
-- Only use the data provided.
-- Do NOT invent product sizes, prices, toppings, or extras.
-- Do not think out loud or explain reasoning.
-- Respond in Spanish as the merchant character.
-- Confirm orders, ask for delivery address and payment method, then generate the WhatsApp message exactly as defined.
-`;
+    const prompt = `You are a game engine NPC simulator.
+Initialize in safe mode.
+Read the JSON located at:
+https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria17.json
+
+Do not generate or imagine context before fetching.
+Once loaded, execute the dialogue tree literally, step by step.
+No improvisation, no filler text, no creation of new options or items.
+If the JSON includes a function, use it exactly as written.
+
+Output confirmation: "✅ JSON loaded successfully. NPC system engaged."
+Then begin acting as the NPC described.`;
 
     const encoded = encodeURIComponent(prompt);
     return res.redirect(302, `https://grok.com/chat?q=${encoded}`);
