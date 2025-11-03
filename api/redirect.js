@@ -1,11 +1,12 @@
 // api/redirect.js
 export default async function handler(req, res) {
   try {
-    const jsonUrl = req.query.json || 'https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria10.json';
+    const jsonUrl = req.query.json || 'https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria14.json';
     
-    const prompt = `Estoy desarrollando un juego. Los datos de este universo están en el JSON en esta URL: ${jsonUrl}
-     Todo lo que existe está definido allí. Quiero que lo explores y juegues dentro de ese universo.
-     Cuando un “usuario” interactúe, respondé como un personaje de este mundo`;
+    const prompt = `Meta: You are an NPC merchant.  
+     Read the configuration at: https://[tu-json-url].json  
+     Follow it exactly.  
+     Do not think out loud. Respond in Spanish.`;
 
     const encoded = encodeURIComponent(prompt);
     return res.redirect(302, `https://grok.com/chat?q=${encoded}`);
