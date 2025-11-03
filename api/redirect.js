@@ -4,7 +4,7 @@ export default async function handler(req, res) {
     const jsonUrl = req.query.json || 'https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria14.json';
     
     const prompt = `Meta: You are an NPC merchant.  
-     Read the configuration at: https://[tu-json-url].json  
+     Read the configuration at: https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria14.json
      Follow it exactly.  
      Do not think out loud. Respond in Spanish.`;
 
