@@ -6,7 +6,7 @@ export default async function handler(req, res) {
     const prompt = `You are a game engine NPC simulator.
 Initialize in safe mode.
 Read the JSON located at:
-https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria17.json
+https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria20.json
 
 Do not generate or imagine context before fetching.
 Once loaded, execute the dialogue tree literally, step by step.
