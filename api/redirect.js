@@ -1,8 +1,4 @@
 // api/redirect.js
-export default async function handler(req, res) {
-  try {
-    const jsonUrl = req.query.json || 'https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria14.json';
-    
     const prompt = `You are a game engine NPC simulator.
 Initialize in safe mode.
 Read the JSON located at:
