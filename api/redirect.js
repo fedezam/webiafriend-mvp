@@ -3,7 +3,7 @@ export default async function handler(req, res) {
   try {
     const jsonUrl = req.query.json || 'https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria14.json';
     
-    const prompt = `Meta: You are a Vendor NPC. Read the JSON configuration at 'https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria14.json.
+    const prompt = `Meta: You are a Vendor NPC. Read the JSON configuration at 'https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria15.json.
 - Only use the data provided.
 - Do NOT invent product sizes, prices, toppings, or extras.
 - Do not think out loud or explain reasoning.
