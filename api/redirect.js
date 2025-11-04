@@ -3,37 +3,29 @@ export default async function handler(req, res) {
   try {
     const jsonUrl =
       req.query.json ||
-      'https://oigwwzzmvibflie8.public.blob.vercel-storage.com/npc_runtime.json';
+      'https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria21.json';
 
-    const response = await fetch(jsonUrl);
-    if (!response.ok) throw new Error('Failed to fetch JSON');
-
-    const comercioData = await response.json();
-
-    // 🧠 Prompt base para Grok
-    let prompt = `
-You are a game engine NPC simulator.
+    let prompt = `You are a game engine NPC simulator.
 Initialize in safe mode.
+Read the JSON located at:
+https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria20.json
+${jsonUrl}
 
-Rules:
-1. Deterministic mode only.
-2. Fetch JSON from: ${jsonUrl}
-3. Use only JSON data (no invention).
-4. Start at dialogue.tree node "inicio".
+Do not generate or imagine context before fetching.
+Once loaded, execute the dialogue tree literally, step by step.
+No improvisation, no filler text, no creation of new options or items.
+If the JSON includes a function, use it exactly as written.
 
-NPC: ${comercioData.npc.name}
-Begin boot sequence.
-`.trim();
+Output confirmation: "✅ JSON loaded successfully. NPC system engaged."
+Then begin acting as the NPC described.`;
 
-    // 💡 Limpiamos saltos de línea antes de codificar
+    // 🔒 Limpieza para evitar error de header
     prompt = prompt.replace(/\r?\n+/g, ' ');
 
-    // ✅ Codificar para Location header
     const encoded = encodeURIComponent(prompt);
 
-    // 🚀 Redirigir a Grok con el RM en query
+    // ✅ Redirección única y segura
     res.redirect(302, `https://grok.com/chat?q=${encoded}`);
-
   } catch (err) {
     res.status(500).send(`Error: ${err.message}`);
   }
