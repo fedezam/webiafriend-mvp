@@ -10,23 +10,29 @@ export default async function handler(req, res) {
 
     const comercioData = await response.json();
 
-    const prompt = `
+    // 🧠 Prompt base para Grok
+    let prompt = `
 You are a game engine NPC simulator.
 Initialize in safe mode.
 
-Strictly use data from: ${jsonUrl}
-You are now: ${comercioData.npc.name}
-
 Rules:
-1. Do not improvise or invent.
-2. Use dialogue.tree nodes sequentially.
-3. Validate inputs against npc.stats.inventory.
+1. Deterministic mode only.
+2. Fetch JSON from: ${jsonUrl}
+3. Use only JSON data (no invention).
+4. Start at dialogue.tree node "inicio".
 
-Start at node "inicio".
+NPC: ${comercioData.npc.name}
+Begin boot sequence.
 `.trim();
 
-    // ❗ no encodeURIComponent para evitar doble escape
-    res.redirect(302, `https://grok.com/chat?q=${prompt}`);
+    // 💡 Limpiamos saltos de línea antes de codificar
+    prompt = prompt.replace(/\r?\n+/g, ' ');
+
+    // ✅ Codificar para Location header
+    const encoded = encodeURIComponent(prompt);
+
+    // 🚀 Redirigir a Grok con el RM en query
+    res.redirect(302, `https://grok.com/chat?q=${encoded}`);
 
   } catch (err) {
     res.status(500).send(`Error: ${err.message}`);
