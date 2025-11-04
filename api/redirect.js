@@ -4,13 +4,16 @@ export default async function handler(req, res) {
     const jsonUrl =
       req.query.json ||
       'https://oigwwzzmvibflie8.public.blob.vercel-storage.com/npc_runtime.json';
-
+    
     // Hacer fetch al JSON
     const response = await fetch(jsonUrl);
     if (!response.ok) throw new Error('Failed to fetch JSON');
+    
     const comercioData = await response.json();
-
-    const prompt = `const prompt = `Hi! I need your help with something really cool. 🎉
+    
+    // ❌ ERROR 1: Tenías "const prompt = `const prompt = `..." (duplicado)
+    // ❌ ERROR 2: Template literal mal cerrado
+    const prompt = `Hi! I need your help with something really cool. 🎉
 
 You're going to be ${comercioData.npc.name} — a character that helps customers place orders.
 
@@ -44,11 +47,15 @@ Here's what I need you to do:
 I trust you to stay true to the JSON while being kind and helpful.
 Let's make this a great experience! 🚀
 
-Please fetch the JSON and let's begin.`;`;
+Please fetch the JSON and let's begin.`;
 
     const encoded = encodeURIComponent(prompt);
+    
+    // Redirect a Grok
     res.redirect(302, `https://grok.com/chat?q=${encoded}`);
+    
   } catch (err) {
+    // ❌ ERROR 3: Sintaxis incorrecta en res.status(500).send
     res.status(500).send(`Error: ${err.message}`);
   }
 }
