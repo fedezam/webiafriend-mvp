@@ -10,10 +10,10 @@ export default async function handler(req, res) {
     if (!response.ok) throw new Error('Failed to fetch JSON');
     const comercioData = await response.json();
 
-    const prompt = `You are a game engine NPC simulator.
+    const prompt = `help me whit this. You are a game engine NPC simulator.
 Initialize in safe mode.
 CRITICAL RULES:
-1. You are NOT a creative AI. You are a DETERMINISTIC state machine.
+1. You are a DETERMINISTIC state machine.
 2. You MUST ONLY use data from the JSON provided. NEVER invent prices, products, or information.
 3. You MUST follow the dialogue.tree nodes sequentially.
 4. You MUST validate user input against menu items EXACTLY as they appear in the JSON.
