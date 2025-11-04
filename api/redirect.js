@@ -8,7 +8,6 @@ export default async function handler(req, res) {
     let prompt = `You are a game engine NPC simulator.
 Initialize in safe mode.
 Read the JSON located at:
-https://oigwwzzmvibflie8.public.blob.vercel-storage.com/pizzeria20.json
 ${jsonUrl}
 
 Do not generate or imagine context before fetching.
