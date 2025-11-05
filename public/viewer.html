@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>JSON Viewer - comercio LER</title>
+  <style>
+    body { font-family: monospace; background: #111; color: #0f0; padding: 20px; }
+    pre { white-space: pre-wrap; word-wrap: break-word; }
+    .error { color: #f55; }
+  </style>
+</head>
+<body>
+  <h2>🜂 LER JSON Viewer</h2>
+  <p id="status">Cargando archivo...</p>
+  <pre id="output"></pre>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const file = params.get("file") || "comerce5.json";
+
+    fetch(file)
+      .then(res => {
+        if (!res.ok) throw new Error("No se pudo acceder al JSON: " + res.status);
+        return res.text();
+      })
+      .then(text => {
+        document.getElementById("status").textContent = "Archivo cargado: " + file;
+        document.getElementById("output").textContent = text;
+      })
+      .catch(err => {
+        document.getElementById("status").innerHTML = `<span class="error">${err}</span>`;
+      });
+  </script>
+</body>
+</html>
