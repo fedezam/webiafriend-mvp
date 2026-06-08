@@ -1,0 +1,20 @@
+GASEOSAS:
+Coca Cola 500ml $1200 [mYOab6klZJ8EVdc5CReF]
+Coca Cola 1.5L $4500 [hXZtoNrFqrW2EUxizWkE]
+Sprite 500ml $1200 [35i8FxqQZGXudCpokhuH]
+Fanta 500ml $1200 [p7qRcPTJICsUPHmEQEFU]
+Agua Mineral $1200 [I4S8azPemI8KO2Vq6s2M]
+Agua Saborizada $1200 [lyAOfuhB8gqfKTPZ6ydO]
+
+ALCOHOL:
+Cerveza Rubia $3000 [K21XGMvN2iqJ2ymkrNm9]
+Cerveza Negra $4000 [tZXuBLrSfDLXx3lpKTa8]
+Vino Blanco $5500 [HLwYF6shsmYjU7wVNMSj]
+Vino Tinto $8000 [UFPrpSCLpJfVOnTFCQWp]
+
+POSTRES:
+Helado 1/4kg $4800 [GPSD04ifK8NDMHaqWIsT]
+Brownie $6000 [Mj2pIOJBerLZFgWR5mcT]
+Flan Casero $3500 [YNIs2OEXzvWX9667tTFt]
+Cheesecake $7000 [ZJu0sMMaDGNY0CVBj9mv]
+Tiramisú $2500 [dzMK2KAZ3aRdKiRRSesp]
