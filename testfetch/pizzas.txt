@@ -1,0 +1,11 @@
+PIZZAS:
+Muzzarella | Chica $8000 [H8wr3abGwLZYXZW4YMN1] | Grande $12000 [HJLnkNQmPG6q8ubnMnHO]
+Napolitana | Chica $8000 [t0EHNPRFkHlh51K9VxoW] | Grande $12000 [BUQfim4QYlfjWHFw5wtk]
+Roquefort | Chica $9000 [25XqMHrDuX8bCogPx1hU] | Grande $15000 [05iSrL0DWxYHyXkfMOSd]
+Jamón y Morrones | Chica $8000 [RZSmDKvQ52PIuMGn6PMW] | Grande $12000 [jiFSDNT7CA0gXngYbPOV]
+Calabresa | Chica $9000 [3x5Gc2O1Xi2kU10R6Laz] | Grande $13000 [a8etE9Kbc5RXvIBASduc]
+Fugazzeta | Chica $8000 [Be8ROM3V0xc6X2vwh3ZJ] | Grande $12000 [u6YkSobhPASOlT2sUqVv]
+Cuatro Quesos | Chica $9000 [ZgftMQw0U1lZoI6ERNh9] | Grande $13000 [JQd5ETRGnHuizrvgEtjF]
+Especial | Chica $8000 [UMtdInLmbgz3Fi1GKrQF] | Grande $12000 [kl1bwNt3Iwy8ygTf8eYO]
+Ananá | Chica $8000 [VvyGjckpgAkPkJRJK4LU] | Grande $12000 [pBoU1YJasc4aJbvXb497]
+Rúcula y Crudo | Chica $10000 [ium7tX96ngLU8jxufpcW] | Grande $16000 [xtmB8bh8kPgmwuDNwjIL]
