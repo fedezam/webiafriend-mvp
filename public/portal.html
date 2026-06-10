@@ -540,7 +540,7 @@ function executeAction(){
 
   if(action === "create_payment"){
     const p = new URLSearchParams({ action, ...payload });
-    window.location.href = `/api/payments/create?${p.toString()}`;
+    window.location.href = `/api/payment/create?${p.toString()}`;
     return;
   }
 
