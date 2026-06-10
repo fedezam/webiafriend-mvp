@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>ÍndiceIA Action Portal</title>
+
+<style>
+
+body{
+    font-family: Arial, sans-serif;
+    max-width: 900px;
+    margin: 40px auto;
+    padding: 20px;
+}
+
+.card{
+    border:1px solid #ddd;
+    border-radius:12px;
+    padding:20px;
+}
+
+.badge{
+    display:inline-block;
+    padding:6px 12px;
+    border-radius:20px;
+    background:#eee;
+    margin-bottom:15px;
+}
+
+button{
+    margin-top:20px;
+    padding:12px 20px;
+    cursor:pointer;
+}
+
+pre{
+    background:#f7f7f7;
+    padding:15px;
+    overflow:auto;
+    border-radius:8px;
+}
+
+#result{
+    margin-top:20px;
+    display:none;
+}
+
+</style>
+</head>
+<body>
+
+<h1>ÍndiceIA Action Portal</h1>
+
+<div id="app"></div>
+
+<script>
+
+const params = new URLSearchParams(window.location.search);
+
+const action = params.get("action");
+
+const payload = {};
+
+for (const [key, value] of params.entries()) {
+
+    if (key !== "action") {
+        payload[key] = value;
+    }
+
+}
+
+const app = document.getElementById("app");
+
+if (!action) {
+
+    app.innerHTML = `
+        <div class="card">
+            <h2>Sin acción</h2>
+
+            <p>
+                Este portal espera una URL con parámetros.
+            </p>
+
+            <pre>
+?action=create_contact&name=Juan
+
+?action=request_quote&service=Masajes
+
+?action=create_appointment&date=2026-06-15
+            </pre>
+
+        </div>
+    `;
+
+} else {
+
+    app.innerHTML = `
+        <div class="card">
+
+            <div class="badge">
+                Acción detectada
+            </div>
+
+            <h2>${action}</h2>
+
+            <h3>Payload</h3>
+
+            <pre id="payloadBox"></pre>
+
+            <button id="executeBtn">
+                Ejecutar acción
+            </button>
+
+            <div id="result"></div>
+
+        </div>
+    `;
+
+    document.getElementById("payloadBox").textContent =
+        JSON.stringify(payload, null, 2);
+
+    document
+        .getElementById("executeBtn")
+        .addEventListener("click", executeAction);
+
+}
+
+function executeAction() {
+
+    const result = document.getElementById("result");
+
+    result.style.display = "block";
+
+    const response = {
+
+        status: "executed",
+        action,
+        payload,
+        timestamp: new Date().toISOString()
+
+    };
+
+    result.innerHTML = `
+        <h3>Resultado</h3>
+
+        <pre>${JSON.stringify(response, null, 2)}</pre>
+    `;
+
+    console.log("ACTION EXECUTED", response);
+
+}
+
+</script>
+
+</body>
+</html>
