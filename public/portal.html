@@ -534,13 +534,13 @@ function executeAction(){
 
   if(action === "create_appointment"){
     const p = new URLSearchParams({ action, ...payload });
-    window.location.href = `/api/calendar/create?${p.toString()}`;
+    window.location.href = `/api/portalk?action=calendar&${p.toString()}`;
     return;
   }
 
   if(action === "create_payment"){
     const p = new URLSearchParams({ action, ...payload });
-    window.location.href = `/api/payment/create?${p.toString()}`;
+    window.location.href = `/api/portalk?action=payment&${p.toString()}`;
     return;
   }
 
