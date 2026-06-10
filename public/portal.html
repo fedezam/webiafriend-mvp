@@ -17,6 +17,7 @@ button{padding:10px 16px;margin:5px;cursor:pointer}
 .btn-confirm{background:#4CAF50;color:white;border:none;padding:12px 24px;border-radius:8px;font-size:16px;cursor:pointer}
 .btn-confirm:hover{background:#45a049}
 .status-ok{background:#e8f5e9;border-left:4px solid #4CAF50;padding:12px;border-radius:4px}
+.status-setup{background:#e3f2fd;border-left:4px solid #2196F3;padding:12px;border-radius:4px}
 </style>
 </head>
 <body>
@@ -88,6 +89,21 @@ function receiveAction(){
   const params = new URLSearchParams(window.location.search);
   const action = params.get("action");
   const status = params.get("status");
+  const mode = params.get("mode");
+
+  // Modo setup — el comercio conecta su calendar
+  if(mode === "setup"){
+    document.getElementById("incomingAction").innerHTML = `
+      <div class="card status-setup">
+        <h2>⚙️ Configuración del comercio</h2>
+        <p>Conectá tu Google Calendar para que los turnos aparezcan automáticamente.<br>
+        Solo necesitás hacerlo una vez.</p>
+        <button class="btn-confirm" onclick="window.location.href='/api/auth/google?mode=setup'">
+          Conectar mi Google Calendar
+        </button>
+      </div>`;
+    return;
+  }
 
   // Retorno exitoso desde OAuth
   if(status === "ok"){
@@ -124,7 +140,6 @@ function receiveAction(){
 
   window.pendingAction = { action, payload };
 
-  // UI diferenciada para create_appointment
   if(action === "create_appointment"){
     document.getElementById("incomingAction").innerHTML = `
       <div class="card">
@@ -155,14 +170,12 @@ function executeAction(){
 
   const { action, payload } = window.pendingAction;
 
-  // Google Calendar
   if(action === "create_appointment"){
     const params = new URLSearchParams({ action, ...payload });
     window.location.href = `/api/auth/google?${params.toString()}`;
     return;
   }
 
-  // Resto de acciones → localStorage como antes
   const record = {
     id: crypto.randomUUID(),
     action,
