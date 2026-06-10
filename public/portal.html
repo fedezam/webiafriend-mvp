@@ -4,36 +4,336 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Entity Runtime</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-body{font-family:system-ui,sans-serif;max-width:1200px;margin:20px auto;padding:20px;background:#f5f5f5}
-h1,h2,h3{margin-top:0}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-.card{background:white;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
-pre{background:#111;color:#0f0;padding:12px;border-radius:8px;overflow:auto}
-button{padding:10px 16px;margin:5px;cursor:pointer}
-.badge{display:inline-block;padding:6px 10px;border-radius:20px;background:#ddd;font-size:12px}
-.log{padding:6px 0;border-bottom:1px solid #eee}
-.timeline-item{padding:8px 0;border-bottom:1px solid #eee}
-.btn-confirm{background:#4CAF50;color:white;border:none;padding:12px 24px;border-radius:8px;font-size:16px;cursor:pointer}
-.btn-confirm:hover{background:#45a049}
-.status-ok{background:#e8f5e9;border-left:4px solid #4CAF50;padding:12px;border-radius:4px}
-.status-setup{background:#e3f2fd;border-left:4px solid #2196F3;padding:12px;border-radius:4px}
+:root {
+  --bg: #0a0a0c;
+  --surface: #131316;
+  --surface-raised: #1a1a1f;
+  --border: #2a2a30;
+  --accent: #00e676;
+  --accent-dim: #00e67622;
+  --accent-blue: #448aff;
+  --accent-blue-dim: #448aff22;
+  --accent-amber: #ffab40;
+  --accent-amber-dim: #ffab4022;
+  --accent-red: #ff5252;
+  --accent-red-dim: #ff525222;
+  --text: #e8e8ec;
+  --text-muted: #6a6a75;
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 32px 40px;
+  line-height: 1.6;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 15% 20%, #00e67608 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 80%, #448aff06 0%, transparent 50%);
+  pointer-events: none;
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 4px;
+}
+
+h2 {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 6px;
+  background: var(--accent-dim);
+  border: 1px solid #00e67633;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 2s ease infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+button {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: 0.02em;
+}
+
+button:hover {
+  border-color: var(--text-muted);
+  color: var(--text);
+  background: var(--surface-raised);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 800px) {
+  body { padding: 16px; }
+  .grid { grid-template-columns: 1fr; }
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+}
+
+pre {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: #0d0d10;
+  color: var(--accent);
+  padding: 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  overflow: auto;
+  max-height: 280px;
+  line-height: 1.5;
+}
+
+.log {
+  padding: 5px 0;
+  border-bottom: 1px solid #1a1a1f;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.log:last-child { border-bottom: none; }
+
+.timeline-item {
+  padding: 8px 0;
+  border-bottom: 1px solid #1a1a1f;
+  font-size: 12px;
+}
+
+.timeline-item:last-child { border-bottom: none; }
+
+.timeline-item b {
+  color: var(--accent-blue);
+  font-weight: 500;
+}
+
+.timeline-item .ts {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* Action cards */
+.btn-confirm {
+  background: var(--accent);
+  color: #0a0a0c;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 12px;
+  transition: all 0.2s ease;
+  letter-spacing: 0;
+}
+
+.btn-confirm:hover {
+  background: #33eb91;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px #00e67633;
+}
+
+.status-ok {
+  background: var(--accent-dim);
+  border: 1px solid #00e67633;
+  border-radius: 10px;
+  padding: 20px;
+  animation: slideIn 0.3s ease;
+}
+
+.status-setup {
+  background: var(--accent-blue-dim);
+  border: 1px solid #448aff33;
+  border-radius: 10px;
+  padding: 20px;
+  animation: slideIn 0.3s ease;
+}
+
+.status-payment {
+  background: var(--accent-amber-dim);
+  border: 1px solid #ffab4033;
+  border-radius: 10px;
+  padding: 20px;
+  animation: slideIn 0.3s ease;
+}
+
+.status-payment h2 {
+  color: var(--accent-amber);
+}
+
+.status-payment .btn-confirm {
+  background: var(--accent-amber);
+}
+
+.status-payment .btn-confirm:hover {
+  background: #ffc570;
+  box-shadow: 0 4px 20px #ffab4033;
+}
+
+.status-error {
+  background: var(--accent-red-dim);
+  border: 1px solid #ff525233;
+  border-radius: 10px;
+  padding: 20px;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+#incomingAction {
+  margin-bottom: 8px;
+}
+
+#incomingAction .card h2,
+#incomingAction .status-ok h2,
+#incomingAction .status-setup h2,
+#incomingAction .status-payment h2,
+#incomingAction .status-error h2 {
+  color: var(--text);
+  text-transform: none;
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+#incomingAction p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 4px 0;
+}
+
+#incomingAction p b {
+  color: var(--text);
+}
+
+#incomingAction a {
+  color: var(--accent-blue);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+#incomingAction a:hover {
+  text-decoration: underline;
+}
+
+/* Empty state */
+.empty-state {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: italic;
+  padding: 12px 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 </style>
 </head>
 <body>
 
-<h1>🧠 Entity Runtime</h1>
-
-<div class="badge" id="entityName">entity: runtime</div>
+<div class="header">
+  <h1>Entity Runtime</h1>
+  <span class="badge" id="entityName">entity: runtime</span>
+</div>
 
 <div id="incomingAction"></div>
 
-<br>
-
-<button onclick="exportMemory()">Exportar memoria</button>
-<button onclick="clearMemory()">Limpiar memoria</button>
-
-<br><br>
+<div class="toolbar">
+  <button onclick="exportMemory()">Exportar memoria</button>
+  <button onclick="clearMemory()">Limpiar memoria</button>
+</div>
 
 <div class="grid">
   <div class="card">
@@ -87,15 +387,17 @@ function log(message){
 
 function receiveAction(){
   const params = new URLSearchParams(window.location.search);
-  const action = params.get("action");
-  const status = params.get("status");
-  const mode = params.get("mode");
+  const action  = params.get("action");
+  const status  = params.get("status");
+  const mode    = params.get("mode");
 
+  // ──────────────────────────────────────────────
   // Modo setup — el comercio conecta su calendar
+  // ──────────────────────────────────────────────
   if(mode === "setup"){
     document.getElementById("incomingAction").innerHTML = `
-      <div class="card status-setup">
-        <h2>⚙️ Configuración del comercio</h2>
+      <div class="status-setup">
+        <h2>Configuración del comercio</h2>
         <p>Conectá tu Google Calendar para que los turnos aparezcan automáticamente.<br>
         Solo necesitás hacerlo una vez.</p>
         <button class="btn-confirm" onclick="window.location.href='/api/auth/google?mode=setup'">
@@ -105,14 +407,16 @@ function receiveAction(){
     return;
   }
 
-  // Retorno exitoso desde OAuth
+  // ──────────────────────────────────────────────
+  // Retorno exitoso desde OAuth (calendar)
+  // ──────────────────────────────────────────────
   if(status === "ok"){
-    const name = params.get("name") || "Cliente";
+    const name      = params.get("name") || "Cliente";
     const eventLink = params.get("event") || "";
     log("CALENDAR_EVENT_CREATED");
     document.getElementById("incomingAction").innerHTML = `
-      <div class="card status-ok">
-        <h2>✅ Turno agendado en Google Calendar</h2>
+      <div class="status-ok">
+        <h2>Turno agendado en Google Calendar</h2>
         <p>El turno de <b>${escapeHtml(name)}</b> fue creado exitosamente.</p>
         ${eventLink ? `<p><a href="${escapeHtml(eventLink)}" target="_blank">Ver en Google Calendar →</a></p>` : ""}
       </div>`;
@@ -120,8 +424,55 @@ function receiveAction(){
     return;
   }
 
+  // ──────────────────────────────────────────────
+  // Retorno exitoso desde Mercado Pago
+  // ──────────────────────────────────────────────
+  if(status === "payment_ok"){
+    const name   = params.get("name")   || "Cliente";
+    const amount = params.get("amount") || "-";
+    const desc   = params.get("description") || params.get("service") || "-";
+    const mpId   = params.get("payment_id")  || "";
+    const mpStatus = params.get("collection_status") || "";
+
+    log("PAYMENT_COMPLETED");
+    log(`MP_PAYMENT_ID: ${mpId}`);
+
+    const record = {
+      id: crypto.randomUUID(),
+      action: "create_payment",
+      payload: { name, amount, description: desc, payment_id: mpId, collection_status: mpStatus },
+      status: "completed",
+      timestamp: new Date().toISOString()
+    };
+    state.actions.unshift(record);
+    state.memory.last_payment = record;
+    saveState();
+
+    document.getElementById("incomingAction").innerHTML = `
+      <div class="status-ok">
+        <h2>Pago confirmado</h2>
+        <p><b>Cliente:</b> ${escapeHtml(name)}</p>
+        <p><b>Servicio:</b> ${escapeHtml(desc)}</p>
+        <p><b>Importe:</b> $${escapeHtml(amount)}</p>
+        {mpId ? `<p style="font-size:11px;color:var(--text-muted);">MP ID: ${escapeHtml(mpId)}</p>` : ""}
+      </div>`;
+    return;
+  }
+
+  // Retorno con error de pago
+  if(status === "payment_fail"){
+    log("PAYMENT_FAILED");
+    document.getElementById("incomingAction").innerHTML = `
+      <div class="status-error">
+        <h2>Pago no completado</h2>
+        <p>El pago no pudo procesarse. Podés reintentar desde el enlace original.</p>
+      </div>`;
+    return;
+  }
+
   if(!action) return;
 
+  // Construir payload desde los query params
   const payload = {};
   for(const [k,v] of params.entries()){
     if(k !== "action") payload[k] = v;
@@ -129,10 +480,13 @@ function receiveAction(){
 
   log(`ACTION_RECEIVED: ${action}`);
 
+  // ──────────────────────────────────────────────
+  // view_memory
+  // ──────────────────────────────────────────────
   if(action === "view_memory"){
     document.getElementById("incomingAction").innerHTML = `
       <div class="card">
-        <h2>📖 View Memory</h2>
+        <h2>View Memory</h2>
         <pre>${JSON.stringify(state.memory, null, 2)}</pre>
       </div>`;
     return;
@@ -140,10 +494,13 @@ function receiveAction(){
 
   window.pendingAction = { action, payload };
 
+  // ──────────────────────────────────────────────
+  // create_appointment
+  // ──────────────────────────────────────────────
   if(action === "create_appointment"){
     document.getElementById("incomingAction").innerHTML = `
       <div class="card">
-        <h2>📅 Agendar turno</h2>
+        <h2>Agendar turno</h2>
         <p><b>Cliente:</b> ${escapeHtml(payload.name || "-")}</p>
         <p><b>Servicio:</b> ${escapeHtml(payload.service || "-")}</p>
         <p><b>Fecha:</b> ${escapeHtml(payload.date || "-")}</p>
@@ -151,33 +508,66 @@ function receiveAction(){
         ${payload.notes ? `<p><b>Notas:</b> ${escapeHtml(payload.notes)}</p>` : ""}
         <button class="btn-confirm" id="executeBtn">Confirmar y agendar en Google Calendar</button>
       </div>`;
-  } else {
-    document.getElementById("incomingAction").innerHTML = `
-      <div class="card">
-        <h2>Acción detectada</h2>
-        <p><b>${escapeHtml(action)}</b></p>
-        <pre>${JSON.stringify(payload, null, 2)}</pre>
-        <button id="executeBtn">Ejecutar acción</button>
-      </div>`;
+    document.getElementById("executeBtn")
+      .addEventListener("click", executeAction);
+    return;
   }
 
+  // ──────────────────────────────────────────────
+  // create_payment
+  // ──────────────────────────────────────────────
+  if(action === "create_payment"){
+    document.getElementById("incomingAction").innerHTML = `
+      <div class="status-payment">
+        <h2>Pago detectado</h2>
+        <p><b>Servicio:</b> ${escapeHtml(payload.description || payload.service || "-")}</p>
+        <p><b>Importe:</b> $$$${escapeHtml(payload.amount || "-")}</p>
+        <p><b>Cliente:</b> ${escapeHtml(payload.name || "-")}</p>
+        ${payload.payer_email ? `<p><b>Email:</b> ${escapeHtml(payload.payer_email)}</p>` : ""}
+        <button class="btn-confirm" id="executeBtn">Pagar con Mercado Pago</button>
+      </div>`;
+    document.getElementById("executeBtn")
+      .addEventListener("click", executeAction);
+    return;
+  }
+
+  // ──────────────────────────────────────────────
+  // Acción genérica
+  // ──────────────────────────────────────────────
+  document.getElementById("incomingAction").innerHTML = `
+    <div class="card">
+      <h2>Acción detectada</h2>
+      <p><b>${escapeHtml(action)}</b></p>
+      <pre>${JSON.stringify(payload, null, 2)}</pre>
+      <button id="executeBtn">Ejecutar acción</button>
+    </div>`;
   document.getElementById("executeBtn")
     .addEventListener("click", executeAction);
 }
 
+// ──────────────────────────────────────────────
+// Ejecutar acción
+// ──────────────────────────────────────────────
 function executeAction(){
   if(!window.pendingAction) return;
 
   const { action, payload } = window.pendingAction;
 
-  // ✅ FIX: Ir directo a /api/calendar/create, NO a /api/auth/google
-  // El comercio ya autorizó OAuth en el setup. El usuario no vuelve a pasar por OAuth.
+  // Appointment → Google Calendar API
   if(action === "create_appointment"){
     const params = new URLSearchParams({ action, ...payload });
     window.location.href = `/api/calendar/create?${params.toString()}`;
     return;
   }
 
+  // Payment → Mercado Pago API (crea preferencia y redirige)
+  if(action === "create_payment"){
+    const params = new URLSearchParams({ action, ...payload });
+    window.location.href = `/api/payments/create?${params.toString()}`;
+    return;
+  }
+
+  // Acción genérica
   const record = {
     id: crypto.randomUUID(),
     action,
@@ -190,13 +580,13 @@ function executeAction(){
   Object.assign(state.memory, payload);
 
   log(`ACTION_EXECUTED: ${action}`);
-  log(`MEMORY_UPDATED`);
+  log("MEMORY_UPDATED");
 
   saveState();
 
   document.getElementById("incomingAction").innerHTML = `
-    <div class="card">
-      <h2>✅ Acción ejecutada</h2>
+    <div class="status-ok">
+      <h2>Acción ejecutada</h2>
       <pre>${JSON.stringify(record, null, 2)}</pre>
     </div>`;
 }
@@ -217,17 +607,23 @@ function render(){
     logs: state.logs.length
   }, null, 2);
   document.getElementById("memoryView").textContent = JSON.stringify(state.memory, null, 2);
+
   document.getElementById("timeline").innerHTML =
-    state.actions.map(a => `
-      <div class="timeline-item">
-        <b>${escapeHtml(a.action)}</b><br>
-        ${a.timestamp}
-      </div>`).join("");
+    state.actions.length === 0
+      ? '<div class="empty-state">Sin acciones aún</div>'
+      : state.actions.map(a => `
+        <div class="timeline-item">
+          <b>${escapeHtml(a.action)}</b>
+          <span class="ts">${a.timestamp}</span>
+        </div>`).join("");
+
   document.getElementById("logs").innerHTML =
-    state.logs.map(l => `
-      <div class="log">
-        [${l.ts}] ${escapeHtml(l.message)}
-      </div>`).join("");
+    state.logs.length === 0
+      ? '<div class="empty-state">Sin logs</div>'
+      : state.logs.map(l => `
+        <div class="log">
+          [${l.ts}] ${escapeHtml(l.message)}
+        </div>`).join("");
 }
 
 function exportMemory(){
