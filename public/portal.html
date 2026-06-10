@@ -3,68 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Entity Runtime</title>
-
 <style>
-
-body{
-    font-family: system-ui, sans-serif;
-    max-width: 1200px;
-    margin: 20px auto;
-    padding: 20px;
-    background:#f5f5f5;
-}
-
-h1,h2,h3{
-    margin-top:0;
-}
-
-.grid{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:20px;
-}
-
-.card{
-    background:white;
-    border-radius:12px;
-    padding:20px;
-    box-shadow:0 2px 8px rgba(0,0,0,.08);
-}
-
-pre{
-    background:#111;
-    color:#0f0;
-    padding:12px;
-    border-radius:8px;
-    overflow:auto;
-}
-
-button{
-    padding:10px 16px;
-    margin:5px;
-    cursor:pointer;
-}
-
-.badge{
-    display:inline-block;
-    padding:6px 10px;
-    border-radius:20px;
-    background:#ddd;
-    font-size:12px;
-}
-
-.log{
-    padding:6px 0;
-    border-bottom:1px solid #eee;
-}
-
-.timeline-item{
-    padding:8px 0;
-    border-bottom:1px solid #eee;
-}
-
+body{font-family:system-ui,sans-serif;max-width:1200px;margin:20px auto;padding:20px;background:#f5f5f5}
+h1,h2,h3{margin-top:0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.card{background:white;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+pre{background:#111;color:#0f0;padding:12px;border-radius:8px;overflow:auto}
+button{padding:10px 16px;margin:5px;cursor:pointer}
+.badge{display:inline-block;padding:6px 10px;border-radius:20px;background:#ddd;font-size:12px}
+.log{padding:6px 0;border-bottom:1px solid #eee}
+.timeline-item{padding:8px 0;border-bottom:1px solid #eee}
 </style>
 </head>
 <body>
@@ -83,27 +32,22 @@ button{
 <br><br>
 
 <div class="grid">
-
-    <div class="card">
-        <h2>Estado</h2>
-        <pre id="stateView"></pre>
-    </div>
-
-    <div class="card">
-        <h2>Memoria</h2>
-        <pre id="memoryView"></pre>
-    </div>
-
-    <div class="card">
-        <h2>Timeline</h2>
-        <div id="timeline"></div>
-    </div>
-
-    <div class="card">
-        <h2>Logs</h2>
-        <div id="logs"></div>
-    </div>
-
+  <div class="card">
+    <h2>Estado</h2>
+    <pre id="stateView"></pre>
+  </div>
+  <div class="card">
+    <h2>Memoria</h2>
+    <pre id="memoryView"></pre>
+  </div>
+  <div class="card">
+    <h2>Timeline</h2>
+    <div id="timeline"></div>
+  </div>
+  <div class="card">
+    <h2>Logs</h2>
+    <div id="logs"></div>
+  </div>
 </div>
 
 <script>
@@ -112,232 +56,147 @@ const STORAGE_KEY = "entity_runtime_state";
 
 let state = loadState();
 
+// FIX 3: localStorage con try/catch (Safari incógnito, cookies bloqueadas)
 function loadState(){
-
-    const existing =
-        localStorage.getItem(STORAGE_KEY);
-
-    if(existing){
-        return JSON.parse(existing);
-    }
-
-    return {
-        entity: "demo_entity",
-        actions: [],
-        memory: {},
-        logs: []
-    };
+  try {
+    const existing = localStorage.getItem(STORAGE_KEY);
+    if(existing) return JSON.parse(existing);
+  } catch(e){
+    console.warn("localStorage unavailable", e);
+  }
+  return { entity:"demo_entity", actions:[], memory:{}, logs:[] };
 }
 
 function saveState(){
-
-    localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(state)
-    );
-
-    render();
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch(e){
+    console.warn("localStorage write failed", e);
+  }
+  render();
 }
 
 function log(message){
-
-    state.logs.unshift({
-        ts:new Date().toISOString(),
-        message
-    });
-
-    state.logs =
-        state.logs.slice(0,100);
-
-    saveState();
+  state.logs.unshift({ ts: new Date().toISOString(), message });
+  state.logs = state.logs.slice(0, 100);
+  saveState();
 }
 
 function receiveAction(){
+  const params = new URLSearchParams(window.location.search);
+  const action = params.get("action");
+  if(!action) return;
 
-    const params =
-        new URLSearchParams(window.location.search);
+  const payload = {};
+  for(const [k,v] of params.entries()){
+    if(k !== "action") payload[k] = v;
+  }
 
-    const action =
-        params.get("action");
+  log(`ACTION_RECEIVED: ${action}`);
 
-    if(!action) return;
+  if(action === "view_memory"){
+    document.getElementById("incomingAction").innerHTML = `
+      <div class="card">
+        <h2>📖 View Memory</h2>
+        <pre>${JSON.stringify(state.memory, null, 2)}</pre>
+      </div>`;
+    return;
+  }
 
-    const payload = {};
+  // FIX 1: sin interpolación directa de `action` en onclick → XSS eliminado
+  window.pendingAction = { action, payload };
 
-    for(const [k,v] of params.entries()){
+  document.getElementById("incomingAction").innerHTML = `
+    <div class="card">
+      <h2>Acción detectada</h2>
+      <p><b>${escapeHtml(action)}</b></p>
+      <pre>${JSON.stringify(payload, null, 2)}</pre>
+      <button id="executeBtn">Ejecutar acción</button>
+    </div>`;
 
-        if(k !== "action"){
-            payload[k] = v;
-        }
-
-    }
-
-    log(`ACTION_RECEIVED: ${action}`);
-
-    if(action === "view_memory"){
-
-        document
-        .getElementById("incomingAction")
-        .innerHTML = `
-            <div class="card">
-                <h2>📖 View Memory</h2>
-                <pre>${JSON.stringify(state.memory,null,2)}</pre>
-            </div>
-        `;
-
-        return;
-    }
-
-    document
-    .getElementById("incomingAction")
-    .innerHTML = `
-        <div class="card">
-
-            <h2>Acción detectada</h2>
-
-            <p><b>${action}</b></p>
-
-            <pre>${JSON.stringify(payload,null,2)}</pre>
-
-            <button onclick="executeAction('${action}')">
-                Ejecutar acción
-            </button>
-
-        </div>
-    `;
-
-    window.pendingAction = {
-        action,
-        payload
-    };
+  document.getElementById("executeBtn")
+    .addEventListener("click", executeAction);
 }
 
-function executeAction(action){
+// FIX 1+2: executeAction sin parámetros, con guard sobre pendingAction
+function executeAction(){
+  if(!window.pendingAction) return;
 
-    const payload =
-        window.pendingAction.payload;
+  const { action, payload } = window.pendingAction;
 
-    const record = {
+  const record = {
+    id: crypto.randomUUID(),
+    action,
+    payload,
+    status: "completed",
+    timestamp: new Date().toISOString()
+  };
 
-        id: crypto.randomUUID(),
+  state.actions.unshift(record);
+  Object.assign(state.memory, payload);
 
-        action,
+  log(`ACTION_EXECUTED: ${action}`);
+  log(`MEMORY_UPDATED`);
 
-        payload,
+  saveState();
 
-        status:"completed",
+  document.getElementById("incomingAction").innerHTML = `
+    <div class="card">
+      <h2>✅ Acción ejecutada</h2>
+      <pre>${JSON.stringify(record, null, 2)}</pre>
+    </div>`;
+}
 
-        timestamp:
-            new Date().toISOString()
-
-    };
-
-    state.actions.unshift(record);
-
-    Object.assign(
-        state.memory,
-        payload
-    );
-
-    log(`ACTION_EXECUTED: ${action}`);
-    log(`MEMORY_UPDATED`);
-
-    saveState();
-
-    document
-    .getElementById("incomingAction")
-    .innerHTML = `
-        <div class="card">
-            <h2>✅ Acción ejecutada</h2>
-            <pre>${JSON.stringify(record,null,2)}</pre>
-        </div>
-    `;
+// Helper para escapar HTML en strings interpolados en el DOM
+function escapeHtml(str){
+  return str
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#39;");
 }
 
 function render(){
-
-    document
-    .getElementById("entityName")
-    .textContent =
-        `entity: ${state.entity}`;
-
-    document
-    .getElementById("stateView")
-    .textContent =
-        JSON.stringify({
-            actions:state.actions.length,
-            logs:state.logs.length
-        },null,2);
-
-    document
-    .getElementById("memoryView")
-    .textContent =
-        JSON.stringify(
-            state.memory,
-            null,
-            2
-        );
-
-    document
-    .getElementById("timeline")
-    .innerHTML =
-        state.actions.map(a => `
-            <div class="timeline-item">
-                <b>${a.action}</b><br>
-                ${a.timestamp}
-            </div>
-        `).join("");
-
-    document
-    .getElementById("logs")
-    .innerHTML =
-        state.logs.map(l => `
-            <div class="log">
-                [${l.ts}] ${l.message}
-            </div>
-        `).join("");
+  document.getElementById("entityName").textContent = `entity: ${state.entity}`;
+  document.getElementById("stateView").textContent = JSON.stringify({
+    actions: state.actions.length,
+    logs: state.logs.length
+  }, null, 2);
+  document.getElementById("memoryView").textContent = JSON.stringify(state.memory, null, 2);
+  document.getElementById("timeline").innerHTML =
+    state.actions.map(a => `
+      <div class="timeline-item">
+        <b>${escapeHtml(a.action)}</b><br>
+        ${a.timestamp}
+      </div>`).join("");
+  document.getElementById("logs").innerHTML =
+    state.logs.map(l => `
+      <div class="log">
+        [${l.ts}] ${escapeHtml(l.message)}
+      </div>`).join("");
 }
 
 function exportMemory(){
-
-    const blob =
-        new Blob(
-            [JSON.stringify(state,null,2)],
-            {type:"application/json"}
-        );
-
-    const url =
-        URL.createObjectURL(blob);
-
-    const a =
-        document.createElement("a");
-
-    a.href = url;
-    a.download = "entity_memory.json";
-    a.click();
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type:"application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "entity_memory.json";
+  a.click();
+  // FIX 4: liberar el object URL
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function clearMemory(){
-
-    if(
-        !confirm(
-            "¿Eliminar toda la memoria?"
-        )
-    ){
-        return;
-    }
-
-    localStorage.removeItem(
-        STORAGE_KEY
-    );
-
-    location.reload();
+  if(!confirm("¿Eliminar toda la memoria?")) return;
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e){}
+  location.reload();
 }
 
 render();
 receiveAction();
 
 </script>
-
 </body>
 </html>
