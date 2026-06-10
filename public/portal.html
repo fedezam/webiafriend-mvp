@@ -14,6 +14,9 @@ button{padding:10px 16px;margin:5px;cursor:pointer}
 .badge{display:inline-block;padding:6px 10px;border-radius:20px;background:#ddd;font-size:12px}
 .log{padding:6px 0;border-bottom:1px solid #eee}
 .timeline-item{padding:8px 0;border-bottom:1px solid #eee}
+.btn-confirm{background:#4CAF50;color:white;border:none;padding:12px 24px;border-radius:8px;font-size:16px;cursor:pointer}
+.btn-confirm:hover{background:#45a049}
+.status-ok{background:#e8f5e9;border-left:4px solid #4CAF50;padding:12px;border-radius:4px}
 </style>
 </head>
 <body>
@@ -56,7 +59,6 @@ const STORAGE_KEY = "entity_runtime_state";
 
 let state = loadState();
 
-// FIX 3: localStorage con try/catch (Safari incógnito, cookies bloqueadas)
 function loadState(){
   try {
     const existing = localStorage.getItem(STORAGE_KEY);
@@ -85,6 +87,23 @@ function log(message){
 function receiveAction(){
   const params = new URLSearchParams(window.location.search);
   const action = params.get("action");
+  const status = params.get("status");
+
+  // Retorno exitoso desde OAuth
+  if(status === "ok"){
+    const name = params.get("name") || "Cliente";
+    const eventLink = params.get("event") || "";
+    log("CALENDAR_EVENT_CREATED");
+    document.getElementById("incomingAction").innerHTML = `
+      <div class="card status-ok">
+        <h2>✅ Turno agendado en Google Calendar</h2>
+        <p>El turno de <b>${escapeHtml(name)}</b> fue creado exitosamente.</p>
+        ${eventLink ? `<p><a href="${escapeHtml(eventLink)}" target="_blank">Ver en Google Calendar →</a></p>` : ""}
+      </div>`;
+    saveState();
+    return;
+  }
+
   if(!action) return;
 
   const payload = {};
@@ -103,27 +122,47 @@ function receiveAction(){
     return;
   }
 
-  // FIX 1: sin interpolación directa de `action` en onclick → XSS eliminado
   window.pendingAction = { action, payload };
 
-  document.getElementById("incomingAction").innerHTML = `
-    <div class="card">
-      <h2>Acción detectada</h2>
-      <p><b>${escapeHtml(action)}</b></p>
-      <pre>${JSON.stringify(payload, null, 2)}</pre>
-      <button id="executeBtn">Ejecutar acción</button>
-    </div>`;
+  // UI diferenciada para create_appointment
+  if(action === "create_appointment"){
+    document.getElementById("incomingAction").innerHTML = `
+      <div class="card">
+        <h2>📅 Agendar turno</h2>
+        <p><b>Cliente:</b> ${escapeHtml(payload.name || "-")}</p>
+        <p><b>Servicio:</b> ${escapeHtml(payload.service || "-")}</p>
+        <p><b>Fecha:</b> ${escapeHtml(payload.date || "-")}</p>
+        <p><b>Hora:</b> ${escapeHtml(payload.time || "-")}</p>
+        ${payload.notes ? `<p><b>Notas:</b> ${escapeHtml(payload.notes)}</p>` : ""}
+        <button class="btn-confirm" id="executeBtn">Confirmar y agendar en Google Calendar</button>
+      </div>`;
+  } else {
+    document.getElementById("incomingAction").innerHTML = `
+      <div class="card">
+        <h2>Acción detectada</h2>
+        <p><b>${escapeHtml(action)}</b></p>
+        <pre>${JSON.stringify(payload, null, 2)}</pre>
+        <button id="executeBtn">Ejecutar acción</button>
+      </div>`;
+  }
 
   document.getElementById("executeBtn")
     .addEventListener("click", executeAction);
 }
 
-// FIX 1+2: executeAction sin parámetros, con guard sobre pendingAction
 function executeAction(){
   if(!window.pendingAction) return;
 
   const { action, payload } = window.pendingAction;
 
+  // Google Calendar
+  if(action === "create_appointment"){
+    const params = new URLSearchParams({ action, ...payload });
+    window.location.href = `/api/auth/google?${params.toString()}`;
+    return;
+  }
+
+  // Resto de acciones → localStorage como antes
   const record = {
     id: crypto.randomUUID(),
     action,
@@ -147,9 +186,8 @@ function executeAction(){
     </div>`;
 }
 
-// Helper para escapar HTML en strings interpolados en el DOM
 function escapeHtml(str){
-  return str
+  return String(str)
     .replace(/&/g,"&amp;")
     .replace(/</g,"&lt;")
     .replace(/>/g,"&gt;")
@@ -184,7 +222,6 @@ function exportMemory(){
   a.href = url;
   a.download = "entity_memory.json";
   a.click();
-  // FIX 4: liberar el object URL
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
