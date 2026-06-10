@@ -533,16 +533,16 @@ function executeAction(){
   const { action, payload } = window.pendingAction;
 
   if(action === "create_appointment"){
-    const p = new URLSearchParams({ action, ...payload });
+    const p = new URLSearchParams({ ...payload }); // ← sin action
     window.location.href = `/api/portalk?action=calendar&${p.toString()}`;
     return;
-  }
+}
 
   if(action === "create_payment"){
-    const p = new URLSearchParams({ action, ...payload });
+    const p = new URLSearchParams({ ...payload }); // ← sin action
     window.location.href = `/api/portalk?action=payment&${p.toString()}`;
     return;
-  }
+}
 
   const record = {
     id: crypto.randomUUID(),
