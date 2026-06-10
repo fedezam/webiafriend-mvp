@@ -4,153 +4,338 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>ÍndiceIA Action Portal</title>
+<title>Entity Runtime</title>
 
 <style>
 
 body{
-    font-family: Arial, sans-serif;
-    max-width: 900px;
-    margin: 40px auto;
+    font-family: system-ui, sans-serif;
+    max-width: 1200px;
+    margin: 20px auto;
     padding: 20px;
+    background:#f5f5f5;
+}
+
+h1,h2,h3{
+    margin-top:0;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
 }
 
 .card{
-    border:1px solid #ddd;
+    background:white;
     border-radius:12px;
     padding:20px;
+    box-shadow:0 2px 8px rgba(0,0,0,.08);
+}
+
+pre{
+    background:#111;
+    color:#0f0;
+    padding:12px;
+    border-radius:8px;
+    overflow:auto;
+}
+
+button{
+    padding:10px 16px;
+    margin:5px;
+    cursor:pointer;
 }
 
 .badge{
     display:inline-block;
-    padding:6px 12px;
+    padding:6px 10px;
     border-radius:20px;
-    background:#eee;
-    margin-bottom:15px;
+    background:#ddd;
+    font-size:12px;
 }
 
-button{
-    margin-top:20px;
-    padding:12px 20px;
-    cursor:pointer;
+.log{
+    padding:6px 0;
+    border-bottom:1px solid #eee;
 }
 
-pre{
-    background:#f7f7f7;
-    padding:15px;
-    overflow:auto;
-    border-radius:8px;
-}
-
-#result{
-    margin-top:20px;
-    display:none;
+.timeline-item{
+    padding:8px 0;
+    border-bottom:1px solid #eee;
 }
 
 </style>
 </head>
 <body>
 
-<h1>ÍndiceIA Action Portal</h1>
+<h1>🧠 Entity Runtime</h1>
 
-<div id="app"></div>
+<div class="badge" id="entityName">entity: runtime</div>
+
+<div id="incomingAction"></div>
+
+<br>
+
+<button onclick="exportMemory()">Exportar memoria</button>
+<button onclick="clearMemory()">Limpiar memoria</button>
+
+<br><br>
+
+<div class="grid">
+
+    <div class="card">
+        <h2>Estado</h2>
+        <pre id="stateView"></pre>
+    </div>
+
+    <div class="card">
+        <h2>Memoria</h2>
+        <pre id="memoryView"></pre>
+    </div>
+
+    <div class="card">
+        <h2>Timeline</h2>
+        <div id="timeline"></div>
+    </div>
+
+    <div class="card">
+        <h2>Logs</h2>
+        <div id="logs"></div>
+    </div>
+
+</div>
 
 <script>
 
-const params = new URLSearchParams(window.location.search);
+const STORAGE_KEY = "entity_runtime_state";
 
-const action = params.get("action");
+let state = loadState();
 
-const payload = {};
+function loadState(){
 
-for (const [key, value] of params.entries()) {
+    const existing =
+        localStorage.getItem(STORAGE_KEY);
 
-    if (key !== "action") {
-        payload[key] = value;
+    if(existing){
+        return JSON.parse(existing);
     }
 
+    return {
+        entity: "demo_entity",
+        actions: [],
+        memory: {},
+        logs: []
+    };
 }
 
-const app = document.getElementById("app");
+function saveState(){
 
-if (!action) {
+    localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(state)
+    );
 
-    app.innerHTML = `
-        <div class="card">
-            <h2>Sin acción</h2>
+    render();
+}
 
-            <p>
-                Este portal espera una URL con parámetros.
-            </p>
+function log(message){
 
-            <pre>
-?action=create_contact&name=Juan
+    state.logs.unshift({
+        ts:new Date().toISOString(),
+        message
+    });
 
-?action=request_quote&service=Masajes
+    state.logs =
+        state.logs.slice(0,100);
 
-?action=create_appointment&date=2026-06-15
-            </pre>
+    saveState();
+}
 
-        </div>
-    `;
+function receiveAction(){
 
-} else {
+    const params =
+        new URLSearchParams(window.location.search);
 
-    app.innerHTML = `
-        <div class="card">
+    const action =
+        params.get("action");
 
-            <div class="badge">
-                Acción detectada
+    if(!action) return;
+
+    const payload = {};
+
+    for(const [k,v] of params.entries()){
+
+        if(k !== "action"){
+            payload[k] = v;
+        }
+
+    }
+
+    log(`ACTION_RECEIVED: ${action}`);
+
+    if(action === "view_memory"){
+
+        document
+        .getElementById("incomingAction")
+        .innerHTML = `
+            <div class="card">
+                <h2>📖 View Memory</h2>
+                <pre>${JSON.stringify(state.memory,null,2)}</pre>
             </div>
+        `;
 
-            <h2>${action}</h2>
+        return;
+    }
 
-            <h3>Payload</h3>
+    document
+    .getElementById("incomingAction")
+    .innerHTML = `
+        <div class="card">
 
-            <pre id="payloadBox"></pre>
+            <h2>Acción detectada</h2>
 
-            <button id="executeBtn">
+            <p><b>${action}</b></p>
+
+            <pre>${JSON.stringify(payload,null,2)}</pre>
+
+            <button onclick="executeAction('${action}')">
                 Ejecutar acción
             </button>
 
-            <div id="result"></div>
-
         </div>
     `;
 
-    document.getElementById("payloadBox").textContent =
-        JSON.stringify(payload, null, 2);
-
-    document
-        .getElementById("executeBtn")
-        .addEventListener("click", executeAction);
-
+    window.pendingAction = {
+        action,
+        payload
+    };
 }
 
-function executeAction() {
+function executeAction(action){
 
-    const result = document.getElementById("result");
+    const payload =
+        window.pendingAction.payload;
 
-    result.style.display = "block";
+    const record = {
 
-    const response = {
+        id: crypto.randomUUID(),
 
-        status: "executed",
         action,
+
         payload,
-        timestamp: new Date().toISOString()
+
+        status:"completed",
+
+        timestamp:
+            new Date().toISOString()
 
     };
 
-    result.innerHTML = `
-        <h3>Resultado</h3>
+    state.actions.unshift(record);
 
-        <pre>${JSON.stringify(response, null, 2)}</pre>
+    Object.assign(
+        state.memory,
+        payload
+    );
+
+    log(`ACTION_EXECUTED: ${action}`);
+    log(`MEMORY_UPDATED`);
+
+    saveState();
+
+    document
+    .getElementById("incomingAction")
+    .innerHTML = `
+        <div class="card">
+            <h2>✅ Acción ejecutada</h2>
+            <pre>${JSON.stringify(record,null,2)}</pre>
+        </div>
     `;
-
-    console.log("ACTION EXECUTED", response);
-
 }
+
+function render(){
+
+    document
+    .getElementById("entityName")
+    .textContent =
+        `entity: ${state.entity}`;
+
+    document
+    .getElementById("stateView")
+    .textContent =
+        JSON.stringify({
+            actions:state.actions.length,
+            logs:state.logs.length
+        },null,2);
+
+    document
+    .getElementById("memoryView")
+    .textContent =
+        JSON.stringify(
+            state.memory,
+            null,
+            2
+        );
+
+    document
+    .getElementById("timeline")
+    .innerHTML =
+        state.actions.map(a => `
+            <div class="timeline-item">
+                <b>${a.action}</b><br>
+                ${a.timestamp}
+            </div>
+        `).join("");
+
+    document
+    .getElementById("logs")
+    .innerHTML =
+        state.logs.map(l => `
+            <div class="log">
+                [${l.ts}] ${l.message}
+            </div>
+        `).join("");
+}
+
+function exportMemory(){
+
+    const blob =
+        new Blob(
+            [JSON.stringify(state,null,2)],
+            {type:"application/json"}
+        );
+
+    const url =
+        URL.createObjectURL(blob);
+
+    const a =
+        document.createElement("a");
+
+    a.href = url;
+    a.download = "entity_memory.json";
+    a.click();
+}
+
+function clearMemory(){
+
+    if(
+        !confirm(
+            "¿Eliminar toda la memoria?"
+        )
+    ){
+        return;
+    }
+
+    localStorage.removeItem(
+        STORAGE_KEY
+    );
+
+    location.reload();
+}
+
+render();
+receiveAction();
 
 </script>
 
