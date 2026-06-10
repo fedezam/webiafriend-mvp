@@ -170,9 +170,11 @@ function executeAction(){
 
   const { action, payload } = window.pendingAction;
 
+  // ✅ FIX: Ir directo a /api/calendar/create, NO a /api/auth/google
+  // El comercio ya autorizó OAuth en el setup. El usuario no vuelve a pasar por OAuth.
   if(action === "create_appointment"){
     const params = new URLSearchParams({ action, ...payload });
-    window.location.href = `/api/auth/google?${params.toString()}`;
+    window.location.href = `/api/calendar/create?${params.toString()}`;
     return;
   }
 
