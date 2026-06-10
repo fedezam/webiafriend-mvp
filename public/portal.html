@@ -199,7 +199,6 @@ pre {
   font-size: 11px;
 }
 
-/* Action cards */
 .btn-confirm {
   background: var(--accent);
   color: #0a0a0c;
@@ -306,7 +305,6 @@ pre {
   text-decoration: underline;
 }
 
-/* Empty state */
 .empty-state {
   color: var(--text-muted);
   font-size: 12px;
@@ -314,7 +312,6 @@ pre {
   padding: 12px 0;
 }
 
-/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -386,14 +383,12 @@ function log(message){
 }
 
 function receiveAction(){
-  const params = new URLSearchParams(window.location.search);
+  const params  = new URLSearchParams(window.location.search);
   const action  = params.get("action");
   const status  = params.get("status");
   const mode    = params.get("mode");
 
-  // ──────────────────────────────────────────────
-  // Modo setup — el comercio conecta su calendar
-  // ──────────────────────────────────────────────
+  // ── Setup: comercio conecta su calendar ──────
   if(mode === "setup"){
     document.getElementById("incomingAction").innerHTML = `
       <div class="status-setup">
@@ -407,16 +402,14 @@ function receiveAction(){
     return;
   }
 
-  // ──────────────────────────────────────────────
-  // Retorno exitoso desde OAuth (calendar)
-  // ──────────────────────────────────────────────
+  // ── Retorno exitoso desde OAuth (calendar) ───
   if(status === "ok"){
-    const name      = params.get("name") || "Cliente";
+    const name      = params.get("name")  || "Cliente";
     const eventLink = params.get("event") || "";
     log("CALENDAR_EVENT_CREATED");
     document.getElementById("incomingAction").innerHTML = `
       <div class="status-ok">
-        <h2>Turno agendado en Google Calendar</h2>
+        <h2>✅ Turno agendado en Google Calendar</h2>
         <p>El turno de <b>${escapeHtml(name)}</b> fue creado exitosamente.</p>
         ${eventLink ? `<p><a href="${escapeHtml(eventLink)}" target="_blank">Ver en Google Calendar →</a></p>` : ""}
       </div>`;
@@ -424,15 +417,13 @@ function receiveAction(){
     return;
   }
 
-  // ──────────────────────────────────────────────
-  // Retorno exitoso desde Mercado Pago
-  // ──────────────────────────────────────────────
+  // ── Retorno exitoso desde Mercado Pago ───────
   if(status === "payment_ok"){
-    const name   = params.get("name")   || "Cliente";
-    const amount = params.get("amount") || "-";
-    const desc   = params.get("description") || params.get("service") || "-";
-    const mpId   = params.get("payment_id")  || "";
-    const mpStatus = params.get("collection_status") || "";
+    const name      = params.get("name")        || "Cliente";
+    const amount    = params.get("amount")      || "-";
+    const desc      = params.get("description") || params.get("service") || "-";
+    const mpId      = params.get("payment_id")  || "";
+    const mpStatus  = params.get("collection_status") || "";
 
     log("PAYMENT_COMPLETED");
     log(`MP_PAYMENT_ID: ${mpId}`);
@@ -450,21 +441,21 @@ function receiveAction(){
 
     document.getElementById("incomingAction").innerHTML = `
       <div class="status-ok">
-        <h2>Pago confirmado</h2>
+        <h2>✅ Pago confirmado</h2>
         <p><b>Cliente:</b> ${escapeHtml(name)}</p>
         <p><b>Servicio:</b> ${escapeHtml(desc)}</p>
         <p><b>Importe:</b> $${escapeHtml(amount)}</p>
-        {mpId ? `<p style="font-size:11px;color:var(--text-muted);">MP ID: ${escapeHtml(mpId)}</p>` : ""}
+        ${mpId ? `<p style="font-size:11px;color:var(--text-muted);">MP ID: ${escapeHtml(mpId)}</p>` : ""}
       </div>`;
     return;
   }
 
-  // Retorno con error de pago
+  // ── Retorno con error de pago ────────────────
   if(status === "payment_fail"){
     log("PAYMENT_FAILED");
     document.getElementById("incomingAction").innerHTML = `
       <div class="status-error">
-        <h2>Pago no completado</h2>
+        <h2>❌ Pago no completado</h2>
         <p>El pago no pudo procesarse. Podés reintentar desde el enlace original.</p>
       </div>`;
     return;
@@ -472,7 +463,6 @@ function receiveAction(){
 
   if(!action) return;
 
-  // Construir payload desde los query params
   const payload = {};
   for(const [k,v] of params.entries()){
     if(k !== "action") payload[k] = v;
@@ -480,13 +470,11 @@ function receiveAction(){
 
   log(`ACTION_RECEIVED: ${action}`);
 
-  // ──────────────────────────────────────────────
-  // view_memory
-  // ──────────────────────────────────────────────
+  // ── view_memory ──────────────────────────────
   if(action === "view_memory"){
     document.getElementById("incomingAction").innerHTML = `
       <div class="card">
-        <h2>View Memory</h2>
+        <h2>📖 View Memory</h2>
         <pre>${JSON.stringify(state.memory, null, 2)}</pre>
       </div>`;
     return;
@@ -494,13 +482,11 @@ function receiveAction(){
 
   window.pendingAction = { action, payload };
 
-  // ──────────────────────────────────────────────
-  // create_appointment
-  // ──────────────────────────────────────────────
+  // ── create_appointment ───────────────────────
   if(action === "create_appointment"){
     document.getElementById("incomingAction").innerHTML = `
       <div class="card">
-        <h2>Agendar turno</h2>
+        <h2>📅 Agendar turno</h2>
         <p><b>Cliente:</b> ${escapeHtml(payload.name || "-")}</p>
         <p><b>Servicio:</b> ${escapeHtml(payload.service || "-")}</p>
         <p><b>Fecha:</b> ${escapeHtml(payload.date || "-")}</p>
@@ -513,15 +499,13 @@ function receiveAction(){
     return;
   }
 
-  // ──────────────────────────────────────────────
-  // create_payment
-  // ──────────────────────────────────────────────
+  // ── create_payment ───────────────────────────
   if(action === "create_payment"){
     document.getElementById("incomingAction").innerHTML = `
       <div class="status-payment">
-        <h2>Pago detectado</h2>
+        <h2>💳 Pago detectado</h2>
         <p><b>Servicio:</b> ${escapeHtml(payload.description || payload.service || "-")}</p>
-        <p><b>Importe:</b> $$$${escapeHtml(payload.amount || "-")}</p>
+        <p><b>Importe:</b> $${escapeHtml(payload.amount || "-")}</p>
         <p><b>Cliente:</b> ${escapeHtml(payload.name || "-")}</p>
         ${payload.payer_email ? `<p><b>Email:</b> ${escapeHtml(payload.payer_email)}</p>` : ""}
         <button class="btn-confirm" id="executeBtn">Pagar con Mercado Pago</button>
@@ -531,9 +515,7 @@ function receiveAction(){
     return;
   }
 
-  // ──────────────────────────────────────────────
-  // Acción genérica
-  // ──────────────────────────────────────────────
+  // ── Acción genérica ──────────────────────────
   document.getElementById("incomingAction").innerHTML = `
     <div class="card">
       <h2>Acción detectada</h2>
@@ -545,29 +527,23 @@ function receiveAction(){
     .addEventListener("click", executeAction);
 }
 
-// ──────────────────────────────────────────────
-// Ejecutar acción
-// ──────────────────────────────────────────────
 function executeAction(){
   if(!window.pendingAction) return;
 
   const { action, payload } = window.pendingAction;
 
-  // Appointment → Google Calendar API
   if(action === "create_appointment"){
-    const params = new URLSearchParams({ action, ...payload });
-    window.location.href = `/api/calendar/create?${params.toString()}`;
+    const p = new URLSearchParams({ action, ...payload });
+    window.location.href = `/api/calendar/create?${p.toString()}`;
     return;
   }
 
-  // Payment → Mercado Pago API (crea preferencia y redirige)
   if(action === "create_payment"){
-    const params = new URLSearchParams({ action, ...payload });
-    window.location.href = `/api/payments/create?${params.toString()}`;
+    const p = new URLSearchParams({ action, ...payload });
+    window.location.href = `/api/payments/create?${p.toString()}`;
     return;
   }
 
-  // Acción genérica
   const record = {
     id: crypto.randomUUID(),
     action,
@@ -586,7 +562,7 @@ function executeAction(){
 
   document.getElementById("incomingAction").innerHTML = `
     <div class="status-ok">
-      <h2>Acción ejecutada</h2>
+      <h2>✅ Acción ejecutada</h2>
       <pre>${JSON.stringify(record, null, 2)}</pre>
     </div>`;
 }
@@ -612,25 +588,25 @@ function render(){
     state.actions.length === 0
       ? '<div class="empty-state">Sin acciones aún</div>'
       : state.actions.map(a => `
-        <div class="timeline-item">
-          <b>${escapeHtml(a.action)}</b>
-          <span class="ts">${a.timestamp}</span>
-        </div>`).join("");
+          <div class="timeline-item">
+            <b>${escapeHtml(a.action)}</b>
+            <span class="ts"> — ${a.timestamp}</span>
+          </div>`).join("");
 
   document.getElementById("logs").innerHTML =
     state.logs.length === 0
       ? '<div class="empty-state">Sin logs</div>'
       : state.logs.map(l => `
-        <div class="log">
-          [${l.ts}] ${escapeHtml(l.message)}
-        </div>`).join("");
+          <div class="log">
+            [${l.ts}] ${escapeHtml(l.message)}
+          </div>`).join("");
 }
 
 function exportMemory(){
   const blob = new Blob([JSON.stringify(state, null, 2)], { type:"application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
   a.download = "entity_memory.json";
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
