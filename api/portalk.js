@@ -5,19 +5,34 @@ const redis = Redis.fromEnv();
 export default async function handler(req, res) {
   const { action } = req.query;
 
-  switch(action) {
+  switch (action) {
 
-    case "github_file":   return handleGithubFile(req, res);
-    case "github_issue":  return handleGithubIssue(req, res);
-    case "calendar":      return handleCalendar(req, res);
-    case "payment":       return handlePayment(req, res);
+    // ── GitHub ───────────────────────────────────
+    case "github_file":  return handleGithubFile(req, res);
+    case "github_tree":  return handleGithubTree(req, res);
+    case "github_write": return handleGithubWrite(req, res);
+    case "github_issue": return handleGithubIssue(req, res);
+
+    // ── Memoria ──────────────────────────────────
+    case "memory_read":  return handleMemoryRead(req, res);
+    case "memory_write": return handleMemoryWrite(req, res);
+    case "memory_list":  return handleMemoryList(req, res);
+
+    // ── Calendar ─────────────────────────────────
+    case "calendar":     return handleCalendar(req, res);
+
+    // ── Mercado Pago ─────────────────────────────
+    case "payment":      return handlePayment(req, res);
+
+    // ── Utilidades ───────────────────────────────
+    case "ping":         return res.json({ ok: true, ts: Date.now() });
 
     default:
       return res.status(400).json({ error: `Acción desconocida: ${action}` });
   }
 }
 
-// ── GitHub: leer archivo ─────────────────────
+// ── GitHub: leer archivo ─────────────────────────────────────
 async function handleGithubFile(req, res) {
   const { repo, path, branch = "main" } = req.query;
   if (!repo || !path) return res.status(400).json({ error: "repo y path requeridos" });
@@ -33,7 +48,61 @@ async function handleGithubFile(req, res) {
   return res.json({ repo, path, branch, sha: data.sha, content });
 }
 
-// ── GitHub: crear issue ──────────────────────
+// ── GitHub: árbol de archivos ────────────────────────────────
+async function handleGithubTree(req, res) {
+  const { repo, branch = "main" } = req.query;
+  if (!repo) return res.status(400).json({ error: "repo requerido" });
+
+  const ghRes = await fetch(
+    `https://api.github.com/repos/fedezam/${repo}/git/trees/${branch}?recursive=1`,
+    { headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, Accept: "application/vnd.github.v3+json" } }
+  );
+  const data = await ghRes.json();
+  if (data.message) return res.status(404).json({ error: data.message });
+
+  const paths = data.tree
+    ?.filter(f => f.type === "blob")
+    .map(f => f.path) ?? [];
+
+  return res.json({ repo, branch, paths });
+}
+
+// ── GitHub: escribir/editar archivo ─────────────────────────
+// Requiere: repo, path, content (base64 o texto plano), message (commit msg)
+// Si el archivo existe, requiere sha del archivo actual para actualizarlo
+async function handleGithubWrite(req, res) {
+  const { repo, path, message = "update via portalk", branch = "main" } = req.query;
+  const body = req.method === "POST" ? req.body : req.query;
+  const { content, sha } = body;
+
+  if (!repo || !path || !content) return res.status(400).json({ error: "repo, path y content requeridos" });
+
+  // Si content no es base64 válido lo convertimos
+  const encoded = Buffer.from(content).toString("base64");
+
+  const payload = { message, content: encoded, branch };
+  if (sha) payload.sha = sha; // necesario para actualizar archivo existente
+
+  const ghRes = await fetch(
+    `https://api.github.com/repos/fedezam/${repo}/contents/${path}`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+        Accept: "application/vnd.github.v3+json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    }
+  );
+  const data = await ghRes.json();
+  if (data.content?.sha) {
+    return res.json({ ok: true, path, sha: data.content.sha, url: data.content.html_url });
+  }
+  return res.status(500).json({ error: "Error escribiendo archivo", detail: data });
+}
+
+// ── GitHub: crear issue ──────────────────────────────────────
 async function handleGithubIssue(req, res) {
   const { repo, title, body, label } = req.query;
   if (!repo || !title) return res.status(400).json({ error: "repo y title requeridos" });
@@ -59,7 +128,58 @@ async function handleGithubIssue(req, res) {
   return res.status(500).json({ error: "Error creando issue", detail: data });
 }
 
-// ── Calendar: crear evento ───────────────────
+// ── Memoria: leer ────────────────────────────────────────────
+// key opcional: si no se pasa, devuelve todas las keys de la entidad
+async function handleMemoryRead(req, res) {
+  const { entity, key } = req.query;
+  if (!entity) return res.status(400).json({ error: "entity requerido" });
+
+  if (key) {
+    const value = await redis.get(`memory:${entity}:${key}`);
+    return res.json({ entity, key, value: value ?? null });
+  }
+
+  // Sin key: devolver todas las keys de la entidad
+  const keys = await redis.keys(`memory:${entity}:*`);
+  if (!keys.length) return res.json({ entity, memory: {} });
+
+  const values = await Promise.all(keys.map(k => redis.get(k)));
+  const memory = {};
+  keys.forEach((k, i) => {
+    const shortKey = k.replace(`memory:${entity}:`, "");
+    memory[shortKey] = values[i];
+  });
+
+  return res.json({ entity, memory });
+}
+
+// ── Memoria: escribir ────────────────────────────────────────
+async function handleMemoryWrite(req, res) {
+  const { entity, key, value } = req.query;
+  if (!entity || !key || value === undefined) {
+    return res.status(400).json({ error: "entity, key y value requeridos" });
+  }
+
+  await redis.set(`memory:${entity}:${key}`, value);
+
+  // Redirige a portal.html para que el humano vea confirmación
+  return res.redirect(
+    `/portal.html?status=memory_ok&entity=${encodeURIComponent(entity)}&key=${encodeURIComponent(key)}`
+  );
+}
+
+// ── Memoria: listar keys ─────────────────────────────────────
+async function handleMemoryList(req, res) {
+  const { entity } = req.query;
+  if (!entity) return res.status(400).json({ error: "entity requerido" });
+
+  const keys = await redis.keys(`memory:${entity}:*`);
+  const shortKeys = keys.map(k => k.replace(`memory:${entity}:`, ""));
+
+  return res.json({ entity, keys: shortKeys });
+}
+
+// ── Calendar: crear evento ───────────────────────────────────
 async function handleCalendar(req, res) {
   const { name, service, date, time, notes } = req.query;
 
@@ -103,7 +223,7 @@ async function handleCalendar(req, res) {
   return res.status(500).json({ error: "Calendar API error", detail: calData });
 }
 
-// ── Mercado Pago: crear preferencia ─────────
+// ── Mercado Pago: crear preferencia ─────────────────────────
 async function handlePayment(req, res) {
   const { amount, description, name, payer_email } = req.query;
   if (!amount || !description) return res.status(400).json({ error: "amount y description requeridos" });
