@@ -23,8 +23,14 @@ export default async function handler(req, res) {
     case "memory_write": return handleMemoryWrite(req, res);
     case "memory_list":  return handleMemoryList(req, res);
 
+    // ── Sheets ───────────────────────────────────
+    case "sheets_read":  return handleSheetsRead(req, res);
+
     // ── Calendar ─────────────────────────────────
     case "calendar":     return handleCalendar(req, res);
+
+    // ── Blogger ──────────────────────────────────
+    case "blogger_post": return handleBloggerPost(req, res);
 
     // ── Mercado Pago ─────────────────────────────
     case "payment":      return handlePayment(req, res);
@@ -73,8 +79,6 @@ async function handleGithubTree(req, res) {
 }
 
 // ── GitHub: escribir/editar archivo ─────────────────────────
-// Requiere: repo, path, content (base64 o texto plano), message (commit msg)
-// Si el archivo existe, requiere sha del archivo actual para actualizarlo
 async function handleGithubWrite(req, res) {
   const { repo, path, message = "update via portalk", branch = "main" } = req.query;
   const body = req.method === "POST" ? req.body : req.query;
@@ -82,11 +86,10 @@ async function handleGithubWrite(req, res) {
 
   if (!repo || !path || !content) return res.status(400).json({ error: "repo, path y content requeridos" });
 
-  // Si content no es base64 válido lo convertimos
   const encoded = Buffer.from(content).toString("base64");
 
   const payload = { message, content: encoded, branch };
-  if (sha) payload.sha = sha; // necesario para actualizar archivo existente
+  if (sha) payload.sha = sha;
 
   const ghRes = await fetch(
     `https://api.github.com/repos/fedezam/${repo}/contents/${path}`,
@@ -134,7 +137,6 @@ async function handleGithubIssue(req, res) {
 }
 
 // ── Memoria: leer ────────────────────────────────────────────
-// key opcional: si no se pasa, devuelve todas las keys de la entidad
 async function handleMemoryRead(req, res) {
   const { entity, key } = req.query;
   if (!entity) return res.status(400).json({ error: "entity requerido" });
@@ -144,7 +146,6 @@ async function handleMemoryRead(req, res) {
     return res.json({ entity, key, value: value ?? null });
   }
 
-  // Sin key: devolver todas las keys de la entidad
   const keys = await redis.keys(`memory:${entity}:*`);
   if (!keys.length) return res.json({ entity, memory: {} });
 
@@ -159,12 +160,10 @@ async function handleMemoryRead(req, res) {
 }
 
 // ── Memoria: escribir ────────────────────────────────────────
-// Acepta GET (query params, valores cortos) y POST (body JSON, valores largos)
 async function handleMemoryWrite(req, res) {
   let entity, key, value;
 
   if (req.method === "POST") {
-    // Body puede venir como JSON o form-urlencoded
     const body = req.body || {};
     entity = body.entity ?? req.query.entity;
     key    = body.key    ?? req.query.key;
@@ -179,8 +178,6 @@ async function handleMemoryWrite(req, res) {
 
   await redis.set(`memory:${entity}:${key}`, value);
 
-  // POST → JSON response (lo consume memory.html via fetch)
-  // GET  → redirect a portal.html para confirmación visual
   if (req.method === "POST") {
     return res.json({ ok: true, entity, key, length: value.length });
   }
@@ -199,6 +196,28 @@ async function handleMemoryList(req, res) {
   const shortKeys = keys.map(k => k.replace(`memory:${entity}:`, ""));
 
   return res.json({ entity, keys: shortKeys });
+}
+
+// ── Sheets: leer CSV público ─────────────────────────────────
+async function handleSheetsRead(req, res) {
+  const url = process.env.SHEETS_CSV_URL;
+  if (!url) return res.status(400).json({ error: "SHEETS_CSV_URL no configurada en env" });
+
+  const r = await fetch(url);
+  if (!r.ok) return res.status(502).json({ error: "No se pudo leer la Sheet", status: r.status });
+
+  const csv = await r.text();
+
+  const memory = {};
+  for (const row of csv.split("\n").slice(1)) {
+    if (!row.trim()) continue;
+    const cols = row.split(",");
+    const key  = cols[0]?.trim();
+    const val  = cols.slice(1, -1).join(",").replace(/^"|"$/g, "").trim();
+    if (key) memory[key] = val;
+  }
+
+  return res.json({ ok: true, memory });
 }
 
 // ── Calendar: crear evento ───────────────────────────────────
@@ -245,6 +264,86 @@ async function handleCalendar(req, res) {
   return res.status(500).json({ error: "Calendar API error", detail: calData });
 }
 
+// ── Blogger: crear o actualizar página/post ──────────────────
+// Acepta GET o POST
+// Params: title, content (HTML), labels (opcional), page_id (para update)
+async function handleBloggerPost(req, res) {
+  const body = req.method === "POST" ? (req.body || {}) : req.query;
+  const title    = body.title    ?? req.query.title;
+  const content  = body.content  ?? req.query.content;
+  const labels   = body.labels   ?? req.query.labels;   // "portalk,memoria"
+  const page_id  = body.page_id  ?? req.query.page_id;  // para update
+
+  if (!title || !content) {
+    return res.status(400).json({ error: "title y content requeridos" });
+  }
+
+  const BLOG_ID = process.env.BLOGGER_BLOG_ID || "1841430618213161331";
+
+  // Refresh token
+  const refreshToken = await redis.get("google_refresh_token");
+  if (!refreshToken) return res.status(401).json({ error: "Sin refresh token" });
+
+  const refreshRes = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id:     process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      refresh_token: refreshToken,
+      grant_type:    "refresh_token"
+    })
+  });
+  const { access_token, error: tokenError } = await refreshRes.json();
+  if (!access_token) return res.status(401).json({ error: "Token refresh falló", detail: tokenError });
+
+  const headers = {
+    Authorization: `Bearer ${access_token}`,
+    "Content-Type": "application/json"
+  };
+
+  const payload = {
+    title,
+    content,
+    ...(labels && { labels: labels.split(",").map(l => l.trim()) })
+  };
+
+  let blogRes, blogData;
+
+  if (page_id) {
+    // Update post existente
+    blogRes = await fetch(
+      `https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts/${page_id}`,
+      { method: "PUT", headers, body: JSON.stringify(payload) }
+    );
+  } else {
+    // Crear post nuevo
+    blogRes = await fetch(
+      `https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts/`,
+      { method: "POST", headers, body: JSON.stringify(payload) }
+    );
+  }
+
+  blogData = await blogRes.json();
+
+  if (blogData.url) {
+    return res.redirect(
+      `/portal.html?status=blogger_ok&post_url=${encodeURIComponent(blogData.url)}&title=${encodeURIComponent(title)}&post_id=${blogData.id}`
+    );
+  }
+
+  // Si falla por scope → instrucciones claras
+  if (blogData.error?.code === 403) {
+    return res.status(403).json({
+      error: "Sin permiso para Blogger — necesitás re-autorizar con scope blogger",
+      detail: blogData.error,
+      reauth_url: "/api/auth/google?mode=setup"
+    });
+  }
+
+  return res.status(500).json({ error: "Error posteando en Blogger", detail: blogData });
+}
+
 // ── Mercado Pago: crear preferencia ─────────────────────────
 async function handlePayment(req, res) {
   const { amount, description, name, payer_email } = req.query;
@@ -271,3 +370,4 @@ async function handlePayment(req, res) {
   if (mpData.init_point) return res.redirect(mpData.init_point);
   return res.status(500).json({ error: "Error creando preferencia", detail: mpData });
 }
+
