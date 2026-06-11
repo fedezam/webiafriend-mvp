@@ -7,6 +7,7 @@ export const config = {
 };
 
 export default async function handler(req, res) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   const { action } = req.query;
 
   switch (action) {
