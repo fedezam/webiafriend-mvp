@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Entity Runtime</title>
+<title>Portalk</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -13,17 +13,18 @@
   --surface-raised: #1a1a1f;
   --border: #2a2a30;
   --accent: #00e676;
-  --accent-dim: #00e67622;
+  --accent-dim: #00e67614;
   --accent-blue: #448aff;
-  --accent-blue-dim: #448aff22;
+  --accent-blue-dim: #448aff14;
   --accent-amber: #ffab40;
-  --accent-amber-dim: #ffab4022;
+  --accent-amber-dim: #ffab4014;
   --accent-red: #ff5252;
-  --accent-red-dim: #ff525222;
+  --accent-red-dim: #ff525214;
   --text: #e8e8ec;
   --text-muted: #6a6a75;
   --font-display: 'Space Grotesk', sans-serif;
   --font-mono: 'DM Mono', monospace;
+  --radius: 10px;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -43,28 +44,13 @@ body::before {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse at 15% 20%, #00e67608 0%, transparent 50%),
-    radial-gradient(ellipse at 85% 80%, #448aff06 0%, transparent 50%);
+    radial-gradient(ellipse at 15% 20%, #00e67606 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 80%, #448aff05 0%, transparent 50%);
   pointer-events: none;
+  z-index: 0;
 }
 
-h1 {
-  font-family: var(--font-display);
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  margin-bottom: 4px;
-}
-
-h2 {
-  font-family: var(--font-display);
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: 12px;
-}
+/* ── Layout ─────────────────────────────────── */
 
 .header {
   display: flex;
@@ -72,26 +58,33 @@ h2 {
   gap: 16px;
   margin-bottom: 24px;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 14px;
+  padding: 4px 12px;
   border-radius: 6px;
   background: var(--accent-dim);
-  border: 1px solid #00e67633;
-  font-size: 12px;
-  font-family: var(--font-mono);
+  border: 1px solid #00e67628;
+  font-size: 11px;
   color: var(--accent);
-  font-weight: 500;
 }
 
 .badge::before {
   content: '';
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--accent);
   animation: pulse 2s ease infinite;
@@ -102,24 +95,107 @@ h2 {
   50% { opacity: 0.3; }
 }
 
+#incomingAction {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 16px;
+}
+
 .toolbar {
   display: flex;
   gap: 8px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
 }
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 800px) {
+  body { padding: 16px; }
+  .grid { grid-template-columns: 1fr; }
+}
+
+/* ── Cards ───────────────────────────────────── */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+
+.card-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+/* ── Action panels ───────────────────────────── */
+
+.panel {
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  animation: slideIn 0.25s ease;
+  border: 1px solid transparent;
+}
+
+.panel-green  { background: var(--accent-dim);  border-color: #00e67628; }
+.panel-blue   { background: var(--accent-blue-dim); border-color: #448aff28; }
+.panel-amber  { background: var(--accent-amber-dim); border-color: #ffab4028; }
+.panel-red    { background: var(--accent-red-dim);  border-color: #ff525228; }
+.panel-neutral { background: var(--surface); border-color: var(--border); }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  letter-spacing: -0.01em;
+}
+
+.panel-row {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 3px 0;
+}
+
+.panel-row b { color: var(--text); font-weight: 500; }
+
+.panel-row a {
+  color: var(--accent-blue);
+  text-decoration: none;
+}
+
+.panel-row a:hover { text-decoration: underline; }
+
+/* ── Buttons ─────────────────────────────────── */
 
 button {
   font-family: var(--font-mono);
   font-size: 12px;
-  padding: 8px 16px;
+  padding: 7px 14px;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.15s ease;
-  letter-spacing: 0.02em;
 }
 
 button:hover {
@@ -128,201 +204,99 @@ button:hover {
   background: var(--surface-raised);
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+.btn-primary {
+  background: var(--accent);
+  color: #0a0a0c;
+  border: none;
+  padding: 10px 22px;
+  border-radius: 7px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 14px;
+  letter-spacing: 0;
 }
 
-@media (max-width: 800px) {
-  body { padding: 16px; }
-  .grid { grid-template-columns: 1fr; }
+.btn-primary:hover {
+  background: #33eb91;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 18px #00e67628;
+  color: #0a0a0c;
 }
 
-.card {
-  background: var(--surface);
+.btn-primary.amber { background: var(--accent-amber); }
+.btn-primary.amber:hover { background: #ffc570; box-shadow: 0 4px 18px #ffab4028; color: #0a0a0c; }
+.btn-primary.blue  { background: var(--accent-blue); }
+.btn-primary.blue:hover  { background: #6aa3ff; box-shadow: 0 4px 18px #448aff28; color: #0a0a0c; }
+
+/* ── Memory textarea ─────────────────────────── */
+
+.memory-textarea {
+  width: 100%;
+  min-height: 120px;
+  background: #0d0d10;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 20px;
-  position: relative;
-  overflow: hidden;
+  border-radius: 6px;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 12px;
+  resize: vertical;
+  margin-top: 10px;
+  line-height: 1.6;
+  outline: none;
 }
 
-.card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--border), transparent);
+.memory-textarea:focus {
+  border-color: #00e67640;
 }
+
+/* ── Pre / logs ──────────────────────────────── */
 
 pre {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 11px;
   background: #0d0d10;
   color: var(--accent);
-  padding: 14px;
+  padding: 12px;
   border-radius: 6px;
   border: 1px solid var(--border);
   overflow: auto;
-  max-height: 280px;
+  max-height: 240px;
   line-height: 1.5;
 }
 
-.log {
-  padding: 5px 0;
+.log-line {
+  padding: 4px 0;
   border-bottom: 1px solid #1a1a1f;
   font-size: 11px;
   color: var(--text-muted);
-  font-family: var(--font-mono);
 }
 
-.log:last-child { border-bottom: none; }
+.log-line:last-child { border-bottom: none; }
 
 .timeline-item {
-  padding: 8px 0;
+  padding: 7px 0;
   border-bottom: 1px solid #1a1a1f;
   font-size: 12px;
 }
 
 .timeline-item:last-child { border-bottom: none; }
+.timeline-item b { color: var(--accent-blue); font-weight: 500; }
+.timeline-item .ts { color: var(--text-muted); font-size: 10px; }
 
-.timeline-item b {
-  color: var(--accent-blue);
-  font-weight: 500;
-}
+.empty { color: var(--text-muted); font-size: 11px; font-style: italic; padding: 8px 0; }
 
-.timeline-item .ts {
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.btn-confirm {
-  background: var(--accent);
-  color: #0a0a0c;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  margin-top: 12px;
-  transition: all 0.2s ease;
-  letter-spacing: 0;
-}
-
-.btn-confirm:hover {
-  background: #33eb91;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 20px #00e67633;
-}
-
-.status-ok {
-  background: var(--accent-dim);
-  border: 1px solid #00e67633;
-  border-radius: 10px;
-  padding: 20px;
-  animation: slideIn 0.3s ease;
-}
-
-.status-setup {
-  background: var(--accent-blue-dim);
-  border: 1px solid #448aff33;
-  border-radius: 10px;
-  padding: 20px;
-  animation: slideIn 0.3s ease;
-}
-
-.status-payment {
-  background: var(--accent-amber-dim);
-  border: 1px solid #ffab4033;
-  border-radius: 10px;
-  padding: 20px;
-  animation: slideIn 0.3s ease;
-}
-
-.status-payment h2 {
-  color: var(--accent-amber);
-}
-
-.status-payment .btn-confirm {
-  background: var(--accent-amber);
-}
-
-.status-payment .btn-confirm:hover {
-  background: #ffc570;
-  box-shadow: 0 4px 20px #ffab4033;
-}
-
-.status-error {
-  background: var(--accent-red-dim);
-  border: 1px solid #ff525233;
-  border-radius: 10px;
-  padding: 20px;
-  animation: slideIn 0.3s ease;
-}
-
-@keyframes slideIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-#incomingAction {
-  margin-bottom: 8px;
-}
-
-#incomingAction .card h2,
-#incomingAction .status-ok h2,
-#incomingAction .status-setup h2,
-#incomingAction .status-payment h2,
-#incomingAction .status-error h2 {
-  color: var(--text);
-  text-transform: none;
-  font-size: 18px;
-  margin-bottom: 8px;
-}
-
-#incomingAction p {
-  font-size: 13px;
-  color: var(--text-muted);
-  margin: 4px 0;
-}
-
-#incomingAction p b {
-  color: var(--text);
-}
-
-#incomingAction a {
-  color: var(--accent-blue);
-  text-decoration: none;
-  font-weight: 500;
-}
-
-#incomingAction a:hover {
-  text-decoration: underline;
-}
-
-.empty-state {
-  color: var(--text-muted);
-  font-size: 12px;
-  font-style: italic;
-  padding: 12px 0;
-}
-
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>Entity Runtime</h1>
-  <span class="badge" id="entityName">entity: runtime</span>
+  <h1>Portalk</h1>
+  <span class="badge" id="entityBadge">runtime</span>
 </div>
 
 <div id="incomingAction"></div>
@@ -330,335 +304,308 @@ pre {
 <div class="toolbar">
   <button onclick="exportMemory()">Exportar memoria</button>
   <button onclick="clearMemory()">Limpiar memoria</button>
+  <button onclick="window.location.href='memory.html'">Editor de memoria →</button>
 </div>
 
 <div class="grid">
   <div class="card">
-    <h2>Estado</h2>
+    <div class="card-label">Estado</div>
     <pre id="stateView"></pre>
   </div>
   <div class="card">
-    <h2>Memoria</h2>
+    <div class="card-label">Memoria local</div>
     <pre id="memoryView"></pre>
   </div>
   <div class="card">
-    <h2>Timeline</h2>
+    <div class="card-label">Timeline</div>
     <div id="timeline"></div>
   </div>
   <div class="card">
-    <h2>Logs</h2>
+    <div class="card-label">Logs</div>
     <div id="logs"></div>
   </div>
 </div>
 
 <script>
+// ═══════════════════════════════════════════════
+// ACTION REGISTRY
+// Para agregar una acción nueva: una entrada acá.
+// ═══════════════════════════════════════════════
 
-const STORAGE_KEY = "entity_runtime_state";
+const ACTIONS = {
 
-let state = loadState();
+  create_appointment: {
+    title: "📅 Agendar turno",
+    color: "panel-blue",
+    btnColor: "blue",
+    btnLabel: "Confirmar y agendar en Google Calendar",
+    fields: [
+      { key: "name",    label: "Cliente"  },
+      { key: "service", label: "Servicio" },
+      { key: "date",    label: "Fecha"    },
+      { key: "time",    label: "Hora"     },
+      { key: "notes",   label: "Notas"    },
+    ],
+    execute: p => `/api/portalk?action=calendar&${qs(p)}`
+  },
 
-function loadState(){
+  create_payment: {
+    title: "💳 Confirmar pago",
+    color: "panel-amber",
+    btnColor: "amber",
+    btnLabel: "Pagar con Mercado Pago",
+    fields: [
+      { key: "description", label: "Servicio" },
+      { key: "amount",      label: "Importe", prefix: "$" },
+      { key: "name",        label: "Cliente"  },
+      { key: "payer_email", label: "Email"    },
+    ],
+    execute: p => `/api/portalk?action=payment&${qs(p)}`
+  },
+
+  create_issue: {
+    title: "🐛 Crear issue en GitHub",
+    color: "panel-neutral",
+    btnColor: "",
+    btnLabel: "Crear issue",
+    fields: [
+      { key: "repo",  label: "Repo"        },
+      { key: "title", label: "Título"      },
+      { key: "body",  label: "Descripción" },
+      { key: "label", label: "Label"       },
+    ],
+    execute: p => `/api/portalk?action=github_issue&${qs(p)}`
+  },
+
+  memory_write: {
+    title: "💾 Guardar en memoria",
+    color: "panel-green",
+    btnColor: "",
+    btnLabel: "Guardar",
+    fields: [
+      { key: "entity", label: "Entidad" },
+      { key: "key",    label: "Clave"   },
+    ],
+    // execute se sobreescribe abajo para incluir el textarea
+    execute: null
+  },
+
+};
+
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+
+const STORAGE_KEY = "portalk_state";
+
+let state = (() => {
   try {
-    const existing = localStorage.getItem(STORAGE_KEY);
-    if(existing) return JSON.parse(existing);
-  } catch(e){
-    console.warn("localStorage unavailable", e);
-  }
-  return { entity:"demo_entity", actions:[], memory:{}, logs:[] };
-}
+    const s = localStorage.getItem(STORAGE_KEY);
+    if (s) return JSON.parse(s);
+  } catch(e) {}
+  return { entity: "demo", actions: [], memory: {}, logs: [] };
+})();
 
-function saveState(){
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch(e){
-    console.warn("localStorage write failed", e);
-  }
+function saveState() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
   render();
 }
 
-function log(message){
-  state.logs.unshift({ ts: new Date().toISOString(), message });
+function log(msg) {
+  state.logs.unshift({ ts: new Date().toISOString(), message: msg });
   state.logs = state.logs.slice(0, 100);
   saveState();
 }
 
-function receiveAction(){
-  const params  = new URLSearchParams(window.location.search);
-  const action  = params.get("action");
-  const status  = params.get("status");
-  const mode    = params.get("mode");
+// ═══════════════════════════════════════════════
+// INCOMING ACTION HANDLER
+// ═══════════════════════════════════════════════
 
-  // ── Setup: comercio conecta su calendar ──────
-  if(mode === "setup"){
-    document.getElementById("incomingAction").innerHTML = `
-      <div class="status-setup">
-        <h2>Configuración del comercio</h2>
-        <p>Conectá tu Google Calendar para que los turnos aparezcan automáticamente.<br>
-        Solo necesitás hacerlo una vez.</p>
-        <button class="btn-confirm" onclick="window.location.href='/api/auth/google?mode=setup'">
-          Conectar mi Google Calendar
-        </button>
-      </div>`;
+function receiveAction() {
+  const params = new URLSearchParams(window.location.search);
+  const action = params.get("action");
+  const status = params.get("status");
+  const mode   = params.get("mode");
+  const el     = document.getElementById("incomingAction");
+
+  // ── Setup OAuth ──────────────────────────────
+  if (mode === "setup") {
+    el.innerHTML = panel("panel-blue", "Conectar Google Calendar",
+      `<p class="panel-row">Conectá tu cuenta una sola vez para habilitar turnos automáticos.</p>
+       <button class="btn-primary blue" onclick="window.location.href='/api/auth/google?mode=setup'">
+         Conectar Google Calendar
+       </button>`);
     return;
   }
 
-  // ── Retorno exitoso desde OAuth (calendar) ───
-  if(status === "ok"){
-    const name      = params.get("name")  || "Cliente";
-    const eventLink = params.get("event") || "";
-    log("CALENDAR_EVENT_CREATED");
-    document.getElementById("incomingAction").innerHTML = `
-      <div class="status-ok">
-        <h2>✅ Turno agendado en Google Calendar</h2>
-        <p>El turno de <b>${escapeHtml(name)}</b> fue creado exitosamente.</p>
-        ${eventLink ? `<p><a href="${escapeHtml(eventLink)}" target="_blank">Ver en Google Calendar →</a></p>` : ""}
-      </div>`;
+  // ── Status returns ───────────────────────────
+  const STATUS_MAP = {
+    ok:              { color: "panel-green", icon: "✅", title: "Turno agendado",
+      body: p => link(p.get("event"), "Ver en Google Calendar →") },
+    github_ok:       { color: "panel-green", icon: "✅", title: "Issue creado",
+      body: p => `<p class="panel-row"><b>${esc(p.get("title"))}</b></p>` + link(p.get("issue_url"), `Ver issue #${p.get("issue_number")} →`) },
+    memory_ok:       { color: "panel-green", icon: "💾", title: "Guardado en memoria",
+      body: p => `<p class="panel-row"><b>Entidad:</b> ${esc(p.get("entity"))}</p><p class="panel-row"><b>Clave:</b> ${esc(p.get("key"))}</p>` },
+    payment_ok:      { color: "panel-green", icon: "✅", title: "Pago confirmado",
+      body: p => rows({ Cliente: p.get("name"), Servicio: p.get("description"), Importe: "$" + p.get("amount") }) },
+    payment_fail:    { color: "panel-red",   icon: "❌", title: "Pago no completado",
+      body: () => `<p class="panel-row">Podés reintentar desde el enlace original.</p>` },
+    payment_pending: { color: "panel-amber", icon: "⏳", title: "Pago pendiente",
+      body: () => `<p class="panel-row">El pago está siendo procesado.</p>` },
+  };
+
+  if (status && STATUS_MAP[status]) {
+    const s = STATUS_MAP[status];
+    log(`STATUS: ${status}`);
+    el.innerHTML = panel(s.color, `${s.icon} ${s.title}`, s.body(params));
     saveState();
     return;
   }
 
-  // ── Retorno exitoso desde GitHub ─────────────
-  if(status === "github_ok"){
-    const title = params.get("title") || "Issue";
-    const number = params.get("issue_number") || "";
-    const url = params.get("issue_url") || "";
-    log(`GITHUB_ISSUE_CREATED: #${number}`);
-    document.getElementById("incomingAction").innerHTML = `
-      <div class="status-ok">
-        <h2>✅ Issue creado en GitHub</h2>
-        <p><b>${escapeHtml(title)}</b></p>
-        ${url ? `<p><a href="${escapeHtml(url)}" target="_blank">Ver issue #${number} →</a></p>` : ""}
-      </div>`;
-    saveState();
-    return;
-  }
+  if (!action) return;
 
-  // ── Retorno exitoso desde Mercado Pago ───────
-  if(status === "payment_ok"){
-    const name      = params.get("name")        || "Cliente";
-    const amount    = params.get("amount")      || "-";
-    const desc      = params.get("description") || params.get("service") || "-";
-    const mpId      = params.get("payment_id")  || "";
-    const mpStatus  = params.get("collection_status") || "";
-
-    log("PAYMENT_COMPLETED");
-    log(`MP_PAYMENT_ID: ${mpId}`);
-
-    const record = {
-      id: crypto.randomUUID(),
-      action: "create_payment",
-      payload: { name, amount, description: desc, payment_id: mpId, collection_status: mpStatus },
-      status: "completed",
-      timestamp: new Date().toISOString()
-    };
-    state.actions.unshift(record);
-    state.memory.last_payment = record;
-    saveState();
-
-    document.getElementById("incomingAction").innerHTML = `
-      <div class="status-ok">
-        <h2>✅ Pago confirmado</h2>
-        <p><b>Cliente:</b> ${escapeHtml(name)}</p>
-        <p><b>Servicio:</b> ${escapeHtml(desc)}</p>
-        <p><b>Importe:</b> $${escapeHtml(amount)}</p>
-        ${mpId ? `<p style="font-size:11px;color:var(--text-muted);">MP ID: ${escapeHtml(mpId)}</p>` : ""}
-      </div>`;
-    return;
-  }
-
-  // ── Retorno con error de pago ────────────────
-  if(status === "payment_fail"){
-    log("PAYMENT_FAILED");
-    document.getElementById("incomingAction").innerHTML = `
-      <div class="status-error">
-        <h2>❌ Pago no completado</h2>
-        <p>El pago no pudo procesarse. Podés reintentar desde el enlace original.</p>
-      </div>`;
-    return;
-  }
-
-  if(!action) return;
-
+  // ── Pending action ───────────────────────────
   const payload = {};
-  for(const [k,v] of params.entries()){
-    if(k !== "action") payload[k] = v;
+  for (const [k, v] of params.entries()) {
+    if (k !== "action") payload[k] = v;
   }
 
   log(`ACTION_RECEIVED: ${action}`);
 
-  // ── view_memory ──────────────────────────────
-  if(action === "view_memory"){
-    document.getElementById("incomingAction").innerHTML = `
-      <div class="card">
-        <h2>📖 View Memory</h2>
-        <pre>${JSON.stringify(state.memory, null, 2)}</pre>
-      </div>`;
+  const def = ACTIONS[action];
+
+  if (!def) {
+    // Acción genérica desconocida
+    el.innerHTML = panel("panel-neutral", `Acción: ${esc(action)}`,
+      `<pre>${JSON.stringify(payload, null, 2)}</pre>
+       <button class="btn-primary" id="executeBtn">Ejecutar</button>`);
+    document.getElementById("executeBtn").onclick = () => executeGeneric(action, payload);
     return;
   }
 
-  window.pendingAction = { action, payload };
+  // Renderizado desde el registry
+  const fieldRows = def.fields
+    .filter(f => payload[f.key])
+    .map(f => `<p class="panel-row"><b>${f.label}:</b> ${f.prefix || ""}${esc(payload[f.key])}</p>`)
+    .join("");
 
-  // ── create_appointment ───────────────────────
-  if(action === "create_appointment"){
-    document.getElementById("incomingAction").innerHTML = `
-      <div class="card">
-        <h2>📅 Agendar turno</h2>
-        <p><b>Cliente:</b> ${escapeHtml(payload.name || "-")}</p>
-        <p><b>Servicio:</b> ${escapeHtml(payload.service || "-")}</p>
-        <p><b>Fecha:</b> ${escapeHtml(payload.date || "-")}</p>
-        <p><b>Hora:</b> ${escapeHtml(payload.time || "-")}</p>
-        ${payload.notes ? `<p><b>Notas:</b> ${escapeHtml(payload.notes)}</p>` : ""}
-        <button class="btn-confirm" id="executeBtn">Confirmar y agendar en Google Calendar</button>
-      </div>`;
-    document.getElementById("executeBtn")
-      .addEventListener("click", executeAction);
-    return;
-  }
+  // memory_write: agrega textarea para el valor largo
+  const extraHtml = action === "memory_write"
+    ? `<textarea class="memory-textarea" id="memoryContent" placeholder="Escribí o pegá el contenido aquí...">${esc(payload.value || "")}</textarea>`
+    : "";
 
-  // ── create_payment ───────────────────────────
-  if(action === "create_payment"){
-    document.getElementById("incomingAction").innerHTML = `
-      <div class="status-payment">
-        <h2>💳 Pago detectado</h2>
-        <p><b>Servicio:</b> ${escapeHtml(payload.description || payload.service || "-")}</p>
-        <p><b>Importe:</b> $${escapeHtml(payload.amount || "-")}</p>
-        <p><b>Cliente:</b> ${escapeHtml(payload.name || "-")}</p>
-        ${payload.payer_email ? `<p><b>Email:</b> ${escapeHtml(payload.payer_email)}</p>` : ""}
-        <button class="btn-confirm" id="executeBtn">Pagar con Mercado Pago</button>
-      </div>`;
-    document.getElementById("executeBtn")
-      .addEventListener("click", executeAction);
-    return;
-  }
+  el.innerHTML = panel(def.color, def.title,
+    `${fieldRows}${extraHtml}
+     <button class="btn-primary ${def.btnColor}" id="executeBtn">${def.btnLabel}</button>`);
 
-  // ── create_issue ─────────────────────────────
-  if(action === "create_issue"){
-    document.getElementById("incomingAction").innerHTML = `
-      <div class="card">
-        <h2>🐛 Crear issue en GitHub</h2>
-        <p><b>Repo:</b> ${escapeHtml(payload.repo || "-")}</p>
-        <p><b>Título:</b> ${escapeHtml(payload.title || "-")}</p>
-        <p><b>Descripción:</b> ${escapeHtml(payload.body || "-")}</p>
-        ${payload.label ? `<p><b>Label:</b> ${escapeHtml(payload.label)}</p>` : ""}
-        <button class="btn-confirm" id="executeBtn">Crear issue en GitHub</button>
-      </div>`;
-    document.getElementById("executeBtn")
-      .addEventListener("click", executeAction);
-    return;
-  }
-
-  // ── Acción genérica ──────────────────────────
-  document.getElementById("incomingAction").innerHTML = `
-    <div class="card">
-      <h2>Acción detectada</h2>
-      <p><b>${escapeHtml(action)}</b></p>
-      <pre>${JSON.stringify(payload, null, 2)}</pre>
-      <button id="executeBtn">Ejecutar acción</button>
-    </div>`;
-  document.getElementById("executeBtn")
-    .addEventListener("click", executeAction);
+  document.getElementById("executeBtn").onclick = () => {
+    if (action === "memory_write") {
+      const value = document.getElementById("memoryContent").value;
+      const p = new URLSearchParams({ ...payload, value });
+      window.location.href = `/api/portalk?action=memory_write&${p.toString()}`;
+    } else {
+      window.location.href = def.execute(payload);
+    }
+  };
 }
 
-function executeAction(){
-  if(!window.pendingAction) return;
+// ═══════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════
 
-  const { action, payload } = window.pendingAction;
+function panel(color, title, body) {
+  return `<div class="panel ${color}">
+    <div class="panel-title">${title}</div>
+    ${body}
+  </div>`;
+}
 
-  if(action === "create_appointment"){
-    const p = new URLSearchParams({ ...payload }); // ← sin action
-    window.location.href = `/api/portalk?action=calendar&${p.toString()}`;
-    return;
-  }
+function rows(obj) {
+  return Object.entries(obj)
+    .filter(([, v]) => v)
+    .map(([k, v]) => `<p class="panel-row"><b>${k}:</b> ${esc(v)}</p>`)
+    .join("");
+}
 
-  if(action === "create_payment"){
-    const p = new URLSearchParams({ ...payload }); // ← sin action
-    window.location.href = `/api/portalk?action=payment&${p.toString()}`;
-    return;
-  }
+function link(url, label) {
+  if (!url) return "";
+  return `<p class="panel-row"><a href="${esc(url)}" target="_blank">${label}</a></p>`;
+}
 
-  if(action === "create_issue"){
-    const p = new URLSearchParams({ ...payload });
-    window.location.href = `/api/portalk?action=github_issue&${p.toString()}`;
-    return;
-  }
+function qs(obj) {
+  return new URLSearchParams(obj).toString();
+}
 
+function esc(str) {
+  return String(str || "")
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+
+function executeGeneric(action, payload) {
   const record = {
     id: crypto.randomUUID(),
-    action,
-    payload,
+    action, payload,
     status: "completed",
     timestamp: new Date().toISOString()
   };
-
   state.actions.unshift(record);
   Object.assign(state.memory, payload);
-
   log(`ACTION_EXECUTED: ${action}`);
-  log("MEMORY_UPDATED");
-
   saveState();
-
-  document.getElementById("incomingAction").innerHTML = `
-    <div class="status-ok">
-      <h2>✅ Acción ejecutada</h2>
-      <pre>${JSON.stringify(record, null, 2)}</pre>
-    </div>`;
+  document.getElementById("incomingAction").innerHTML =
+    panel("panel-green", "✅ Ejecutado", `<pre>${JSON.stringify(record, null, 2)}</pre>`);
 }
 
-function escapeHtml(str){
-  return String(str)
-    .replace(/&/g,"&amp;")
-    .replace(/</g,"&lt;")
-    .replace(/>/g,"&gt;")
-    .replace(/"/g,"&quot;")
-    .replace(/'/g,"&#39;");
-}
+// ═══════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════
 
-function render(){
-  document.getElementById("entityName").textContent = `entity: ${state.entity}`;
+function render() {
+  document.getElementById("entityBadge").textContent = state.entity;
   document.getElementById("stateView").textContent = JSON.stringify({
-    actions: state.actions.length,
+    acciones: state.actions.length,
     logs: state.logs.length
   }, null, 2);
-  document.getElementById("memoryView").textContent = JSON.stringify(state.memory, null, 2);
+  document.getElementById("memoryView").textContent =
+    JSON.stringify(state.memory, null, 2);
 
   document.getElementById("timeline").innerHTML =
     state.actions.length === 0
-      ? '<div class="empty-state">Sin acciones aún</div>'
+      ? '<div class="empty">Sin acciones aún</div>'
       : state.actions.map(a => `
           <div class="timeline-item">
-            <b>${escapeHtml(a.action)}</b>
+            <b>${esc(a.action)}</b>
             <span class="ts"> — ${a.timestamp}</span>
           </div>`).join("");
 
   document.getElementById("logs").innerHTML =
     state.logs.length === 0
-      ? '<div class="empty-state">Sin logs</div>'
+      ? '<div class="empty">Sin logs</div>'
       : state.logs.map(l => `
-          <div class="log">
-            [${l.ts}] ${escapeHtml(l.message)}
-          </div>`).join("");
+          <div class="log-line">[${l.ts.slice(11,19)}] ${esc(l.message)}</div>`).join("");
 }
 
-function exportMemory(){
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type:"application/json" });
+// ═══════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════
+
+function exportMemory() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
-  a.href     = url;
-  a.download = "entity_memory.json";
-  a.click();
+  a.href = url; a.download = "portalk_memory.json"; a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function clearMemory(){
-  if(!confirm("¿Eliminar toda la memoria?")) return;
-  try { localStorage.removeItem(STORAGE_KEY); } catch(e){}
+function clearMemory() {
+  if (!confirm("¿Eliminar toda la memoria local?")) return;
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
   location.reload();
 }
 
 render();
 receiveAction();
-
 </script>
 </body>
 </html>
