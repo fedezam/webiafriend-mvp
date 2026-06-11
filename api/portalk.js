@@ -2,6 +2,10 @@ import { Redis } from "@upstash/redis";
 
 const redis = Redis.fromEnv();
 
+export const config = {
+  api: { bodyParser: { sizeLimit: '1mb' } }
+};
+
 export default async function handler(req, res) {
   const { action } = req.query;
 
@@ -154,15 +158,32 @@ async function handleMemoryRead(req, res) {
 }
 
 // ── Memoria: escribir ────────────────────────────────────────
+// Acepta GET (query params, valores cortos) y POST (body JSON, valores largos)
 async function handleMemoryWrite(req, res) {
-  const { entity, key, value } = req.query;
+  let entity, key, value;
+
+  if (req.method === "POST") {
+    // Body puede venir como JSON o form-urlencoded
+    const body = req.body || {};
+    entity = body.entity ?? req.query.entity;
+    key    = body.key    ?? req.query.key;
+    value  = body.value  ?? req.query.value;
+  } else {
+    ({ entity, key, value } = req.query);
+  }
+
   if (!entity || !key || value === undefined) {
     return res.status(400).json({ error: "entity, key y value requeridos" });
   }
 
   await redis.set(`memory:${entity}:${key}`, value);
 
-  // Redirige a portal.html para que el humano vea confirmación
+  // POST → JSON response (lo consume memory.html via fetch)
+  // GET  → redirect a portal.html para confirmación visual
+  if (req.method === "POST") {
+    return res.json({ ok: true, entity, key, length: value.length });
+  }
+
   return res.redirect(
     `/portal.html?status=memory_ok&entity=${encodeURIComponent(entity)}&key=${encodeURIComponent(key)}`
   );
