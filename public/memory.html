@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portalk · Memoria</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0c;
+  --surface: #131316;
+  --surface-raised: #1a1a1f;
+  --border: #2a2a30;
+  --accent: #00e676;
+  --accent-dim: #00e67614;
+  --accent-blue: #448aff;
+  --text: #e8e8ec;
+  --text-muted: #6a6a75;
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 32px 40px;
+  line-height: 1.6;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at 20% 30%, #00e67606 0%, transparent 50%);
+  pointer-events: none;
+}
+
+@media (max-width: 700px) { body { padding: 16px; } }
+
+/* ── Header ──────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.header-left { display: flex; align-items: center; gap: 12px; }
+
+h1 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.breadcrumb {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.breadcrumb a {
+  color: var(--accent-blue);
+  text-decoration: none;
+}
+
+/* ── Form ────────────────────────────────────── */
+
+.form-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  min-width: 160px;
+}
+
+label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+input {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+input:focus { border-color: #00e67640; }
+
+/* ── Editor ──────────────────────────────────── */
+
+.editor-wrap {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.editor-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.editor-label span {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.char-count {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+textarea {
+  width: 100%;
+  min-height: 280px;
+  background: #0d0d10;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 16px;
+  resize: vertical;
+  line-height: 1.7;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+textarea:focus { border-color: #00e67640; }
+
+/* ── Toolbar ─────────────────────────────────── */
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+button {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+button:hover {
+  border-color: var(--text-muted);
+  color: var(--text);
+  background: var(--surface-raised);
+}
+
+.btn-save {
+  background: var(--accent);
+  color: #0a0a0c;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 7px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  transition: all 0.15s ease;
+}
+
+.btn-save:hover {
+  background: #33eb91;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 18px #00e67628;
+  color: #0a0a0c;
+}
+
+.btn-save:disabled {
+  opacity: 0.4;
+  transform: none;
+  cursor: not-allowed;
+}
+
+/* ── Keys panel ──────────────────────────────── */
+
+.keys-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+
+.keys-label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.key-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin: 3px;
+  transition: all 0.12s;
+}
+
+.key-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.empty { color: var(--text-muted); font-size: 11px; font-style: italic; }
+
+/* ── Status toast ────────────────────────────── */
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--accent-dim);
+  border: 1px solid #00e67628;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 12px;
+  color: var(--accent);
+  animation: toastIn 0.2s ease;
+  z-index: 100;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div>
+      <div class="breadcrumb"><a href="/portal.html">← Portalk</a> / memoria</div>
+      <h1>Editor de memoria</h1>
+    </div>
+  </div>
+  <button onclick="loadKeys()">↺ Actualizar claves</button>
+</div>
+
+<!-- Claves existentes -->
+<div class="keys-panel">
+  <div class="keys-label">Claves en Redis</div>
+  <div id="keysContainer"><span class="empty">Cargando...</span></div>
+</div>
+
+<!-- Formulario -->
+<div class="form-row">
+  <div class="field">
+    <label>Entidad</label>
+    <input type="text" id="entity" placeholder="demo" value="demo">
+  </div>
+  <div class="field">
+    <label>Clave</label>
+    <input type="text" id="key" placeholder="contexto_sesion">
+  </div>
+</div>
+
+<div class="editor-label">
+  <span>Contenido</span>
+  <span class="char-count" id="charCount">0 chars</span>
+</div>
+
+<div class="toolbar">
+  <button onclick="insertTemplate('session')">+ Plantilla sesión</button>
+  <button onclick="insertTemplate('context')">+ Plantilla contexto</button>
+  <button onclick="clearEditor()">Limpiar</button>
+  <button onclick="readKey()">Leer clave actual</button>
+</div>
+
+<div class="editor-wrap">
+  <textarea id="content" placeholder="Escribí el contenido en markdown...&#10;&#10;## Sesión 2026-06-10&#10;- Trabajamos en Portalk&#10;- Agregamos memory_write con textarea&#10;- ..."></textarea>
+</div>
+
+<div style="display:flex; gap:10px; align-items:center;">
+  <button class="btn-save" id="saveBtn" onclick="saveMemory()">Guardar en Redis</button>
+  <span style="font-size:11px; color:var(--text-muted);">El humano confirma con un click — nada se guarda sin tu OK</span>
+</div>
+
+<script>
+
+const BASE = "https://webiafriend-mvp.vercel.app";
+
+// ── Char counter ──────────────────────────────
+
+document.getElementById("content").addEventListener("input", e => {
+  document.getElementById("charCount").textContent = `${e.target.value.length} chars`;
+});
+
+// ── Load keys from Redis ──────────────────────
+
+async function loadKeys() {
+  const entity = document.getElementById("entity").value || "demo";
+  const container = document.getElementById("keysContainer");
+  container.innerHTML = '<span class="empty">Cargando...</span>';
+  try {
+    const res  = await fetch(`${BASE}/api/portalk?action=memory_list&entity=${encodeURIComponent(entity)}`);
+    const data = await res.json();
+    if (!data.keys || data.keys.length === 0) {
+      container.innerHTML = '<span class="empty">Sin claves guardadas aún</span>';
+      return;
+    }
+    container.innerHTML = data.keys.map(k =>
+      `<span class="key-chip" onclick="selectKey('${escJs(k)}')">${esc(k)}</span>`
+    ).join("");
+  } catch(e) {
+    container.innerHTML = '<span class="empty">Error al conectar con Redis</span>';
+  }
+}
+
+function selectKey(key) {
+  document.getElementById("key").value = key;
+  readKey();
+}
+
+// ── Read key from Redis ───────────────────────
+
+async function readKey() {
+  const entity  = document.getElementById("entity").value || "demo";
+  const key     = document.getElementById("key").value;
+  if (!key) { showToast("Ingresá una clave primero"); return; }
+  try {
+    const res  = await fetch(`${BASE}/api/portalk?action=memory_read&entity=${encodeURIComponent(entity)}&key=${encodeURIComponent(key)}`);
+    const data = await res.json();
+    if (data.value) {
+      document.getElementById("content").value = data.value;
+      document.getElementById("charCount").textContent = `${data.value.length} chars`;
+      showToast(`Clave "${key}" cargada`);
+    } else {
+      showToast("Clave vacía o no encontrada");
+    }
+  } catch(e) {
+    showToast("Error al leer de Redis");
+  }
+}
+
+// ── Save via Portalk (redirect = human click) ─
+// El LLM escribe el contenido, el humano hace click en "Guardar"
+// El portal redirige a la API que escribe en Redis
+// Redis confirma → vuelve a portal.html?status=memory_ok
+
+function saveMemory() {
+  const entity  = document.getElementById("entity").value.trim();
+  const key     = document.getElementById("key").value.trim();
+  const value   = document.getElementById("content").value.trim();
+
+  if (!entity || !key) { showToast("Completá entidad y clave"); return; }
+  if (!value)          { showToast("El contenido está vacío"); return; }
+
+  // Valores largos: POST via form submit para no romper límite de URL
+  const form = document.createElement("form");
+  form.method = "GET"; // Portalk usa query params
+  form.action = `${BASE}/api/portalk`;
+
+  const params = { action: "memory_write", entity, key, value };
+  for (const [k, v] of Object.entries(params)) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = k;
+    input.value = v;
+    form.appendChild(input);
+  }
+
+  document.body.appendChild(form);
+  form.submit();
+}
+
+// ── Templates ─────────────────────────────────
+
+const TEMPLATES = {
+  session: `## Sesión ${new Date().toISOString().slice(0,10)}
+
+### Trabajamos en
+- 
+
+### Decisiones tomadas
+- 
+
+### Pendiente
+- 
+
+### Contexto para próxima sesión
+`,
+  context: `## Contexto del proyecto
+
+### Estado actual
+- 
+
+### Arquitectura
+- 
+
+### Próximos pasos
+- 
+`
+};
+
+function insertTemplate(name) {
+  const ta = document.getElementById("content");
+  ta.value = TEMPLATES[name] || "";
+  document.getElementById("charCount").textContent = `${ta.value.length} chars`;
+  ta.focus();
+}
+
+function clearEditor() {
+  document.getElementById("content").value = "";
+  document.getElementById("charCount").textContent = "0 chars";
+}
+
+// ── Toast ──────────────────────────────────────
+
+function showToast(msg) {
+  const existing = document.querySelector(".toast");
+  if (existing) existing.remove();
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+// ── Utils ──────────────────────────────────────
+
+function esc(str) {
+  return String(str || "")
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+
+function escJs(str) {
+  return String(str || "").replace(/'/g, "\\'");
+}
+
+// ── Init ───────────────────────────────────────
+
+// Si viene con ?entity= y ?key= precargados (desde un link del LLM)
+const params = new URLSearchParams(window.location.search);
+if (params.get("entity")) document.getElementById("entity").value = params.get("entity");
+if (params.get("key"))    document.getElementById("key").value    = params.get("key");
+if (params.get("value"))  {
+  document.getElementById("content").value = params.get("value");
+  document.getElementById("charCount").textContent = `${params.get("value").length} chars`;
+}
+
+loadKeys();
+</script>
+</body>
+</html>
