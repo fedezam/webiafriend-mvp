@@ -444,6 +444,8 @@ function receiveAction() {
       body: p => link(p.get("event"), "Ver en Google Calendar →") },
     github_ok:       { color: "panel-green", icon: "✅", title: "Issue creado",
       body: p => `<p class="panel-row"><b>${esc(p.get("title"))}</b></p>` + link(p.get("issue_url"), `Ver issue #${p.get("issue_number")} →`) },
+    blogger_ok:      { color: "panel-green", icon: "✅", title: "Publicado en Blogger",
+      body: p => `<p class="panel-row"><b>${esc(p.get("title"))}</b></p>` + link(p.get("post_url"), "Ver post →") },
     memory_ok:       { color: "panel-green", icon: "💾", title: "Guardado en memoria",
       body: p => `<p class="panel-row"><b>Entidad:</b> ${esc(p.get("entity"))}</p><p class="panel-row"><b>Clave:</b> ${esc(p.get("key"))}</p>` },
     payment_ok:      { color: "panel-green", icon: "✅", title: "Pago confirmado",
