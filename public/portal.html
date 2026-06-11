@@ -417,6 +417,22 @@ function receiveAction(){
     return;
   }
 
+  // ── Retorno exitoso desde GitHub ─────────────
+  if(status === "github_ok"){
+    const title = params.get("title") || "Issue";
+    const number = params.get("issue_number") || "";
+    const url = params.get("issue_url") || "";
+    log(`GITHUB_ISSUE_CREATED: #${number}`);
+    document.getElementById("incomingAction").innerHTML = `
+      <div class="status-ok">
+        <h2>✅ Issue creado en GitHub</h2>
+        <p><b>${escapeHtml(title)}</b></p>
+        ${url ? `<p><a href="${escapeHtml(url)}" target="_blank">Ver issue #${number} →</a></p>` : ""}
+      </div>`;
+    saveState();
+    return;
+  }
+
   // ── Retorno exitoso desde Mercado Pago ───────
   if(status === "payment_ok"){
     const name      = params.get("name")        || "Cliente";
@@ -515,6 +531,22 @@ function receiveAction(){
     return;
   }
 
+  // ── create_issue ─────────────────────────────
+  if(action === "create_issue"){
+    document.getElementById("incomingAction").innerHTML = `
+      <div class="card">
+        <h2>🐛 Crear issue en GitHub</h2>
+        <p><b>Repo:</b> ${escapeHtml(payload.repo || "-")}</p>
+        <p><b>Título:</b> ${escapeHtml(payload.title || "-")}</p>
+        <p><b>Descripción:</b> ${escapeHtml(payload.body || "-")}</p>
+        ${payload.label ? `<p><b>Label:</b> ${escapeHtml(payload.label)}</p>` : ""}
+        <button class="btn-confirm" id="executeBtn">Crear issue en GitHub</button>
+      </div>`;
+    document.getElementById("executeBtn")
+      .addEventListener("click", executeAction);
+    return;
+  }
+
   // ── Acción genérica ──────────────────────────
   document.getElementById("incomingAction").innerHTML = `
     <div class="card">
@@ -536,13 +568,19 @@ function executeAction(){
     const p = new URLSearchParams({ ...payload }); // ← sin action
     window.location.href = `/api/portalk?action=calendar&${p.toString()}`;
     return;
-}
+  }
 
   if(action === "create_payment"){
     const p = new URLSearchParams({ ...payload }); // ← sin action
     window.location.href = `/api/portalk?action=payment&${p.toString()}`;
     return;
-}
+  }
+
+  if(action === "create_issue"){
+    const p = new URLSearchParams({ ...payload });
+    window.location.href = `/api/portalk?action=github_issue&${p.toString()}`;
+    return;
+  }
 
   const record = {
     id: crypto.randomUUID(),
