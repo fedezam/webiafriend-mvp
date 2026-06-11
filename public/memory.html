@@ -386,7 +386,7 @@ async function readKey() {
 // El portal redirige a la API que escribe en Redis
 // Redis confirma → vuelve a portal.html?status=memory_ok
 
-function saveMemory() {
+async function saveMemory() {
   const entity  = document.getElementById("entity").value.trim();
   const key     = document.getElementById("key").value.trim();
   const value   = document.getElementById("content").value.trim();
@@ -394,22 +394,30 @@ function saveMemory() {
   if (!entity || !key) { showToast("Completá entidad y clave"); return; }
   if (!value)          { showToast("El contenido está vacío"); return; }
 
-  // Valores largos: POST via form submit para no romper límite de URL
-  const form = document.createElement("form");
-  form.method = "GET"; // Portalk usa query params
-  form.action = `${BASE}/api/portalk`;
+  const btn = document.getElementById("saveBtn");
+  btn.disabled = true;
+  btn.textContent = "Guardando...";
 
-  const params = { action: "memory_write", entity, key, value };
-  for (const [k, v] of Object.entries(params)) {
-    const input = document.createElement("input");
-    input.type = "hidden";
-    input.name = k;
-    input.value = v;
-    form.appendChild(input);
+  try {
+    const res  = await fetch(`${BASE}/api/portalk?action=memory_write`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entity, key, value })
+    });
+    const data = await res.json();
+
+    if (data.ok) {
+      showToast(`✓ Guardado — ${data.length} chars`);
+      loadKeys();
+    } else {
+      showToast("Error al guardar: " + (data.error || "desconocido"));
+    }
+  } catch(e) {
+    showToast("Error de conexión");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Guardar en Redis";
   }
-
-  document.body.appendChild(form);
-  form.submit();
 }
 
 // ── Templates ─────────────────────────────────
