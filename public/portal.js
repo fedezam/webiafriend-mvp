@@ -1,3 +1,6 @@
+Aquí tienes el código de `public/portal.js` con **únicamente** la adición de la entrada `github_write` en el objeto `ACTIONS`, tal como solicitaste.
+
+```javascript
 // ═══════════════════════════════════════════════
 // ACTION REGISTRY
 // ═══════════════════════════════════════════════
@@ -47,6 +50,7 @@ const ACTIONS = {
     execute: p => `/api/portalk?action=github_issue&${qs(p)}`
   },
 
+
   memory_write: {
     title: "💾 Guardar en memoria",
     color: "panel-green",
@@ -69,6 +73,21 @@ const ACTIONS = {
       { key: "title",   label: "Título"  },
       { key: "labels",  label: "Labels"  },
       { key: "page_id", label: "Post ID" },
+    ],
+    hasTextarea: true,
+    execute: null
+  },
+
+  github_write: {
+    title: "📝 Escribir archivo en GitHub",
+    color: "panel-neutral",
+    btnColor: "",
+    btnLabel: "Escribir archivo",
+    fields: [
+      { key: "repo",    label: "Repo"                },
+      { key: "path",    label: "Path"                },
+      { key: "message", label: "Mensaje"             },
+      { key: "sha",     label: "SHA (si es edición)" },
     ],
     hasTextarea: true,
     execute: null
@@ -434,3 +453,4 @@ function clearMemory() {
 // ── Init ──────────────────────────────────────
 render();
 receiveAction();
+```
