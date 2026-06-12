@@ -20,6 +20,8 @@
   --accent-amber-dim: #ffab4014;
   --accent-red: #ff5252;
   --accent-red-dim: #ff525214;
+  --accent-purple: #ce93d8;
+  --accent-purple-dim: #ce93d814;
   --text: #e8e8ec;
   --text-muted: #6a6a75;
   --font-display: 'Space Grotesk', sans-serif;
@@ -121,6 +123,88 @@ h1 {
 @media (max-width: 800px) {
   body { padding: 16px; }
   .grid { grid-template-columns: 1fr; }
+}
+
+/* ── Connectors dashboard ────────────────────── */
+.connectors {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 20px;
+}
+
+.connector-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.connector-row:last-child { border-bottom: none; }
+
+.connector-name { flex: 1; color: var(--text); font-family: var(--font-mono); }
+.connector-status { font-size: 10px; width: 70px; }
+.connector-status.online  { color: var(--accent); }
+.connector-status.offline { color: var(--text-muted); }
+
+.toggle-mode {
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  transition: all 0.15s;
+}
+
+.toggle-mode.auto {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.toggle-mode:hover { opacity: 0.8; }
+
+/* ── Countdown ───────────────────────────────── */
+.countdown-wrap {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.countdown-bar-bg {
+  flex: 1;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  min-width: 80px;
+}
+
+.countdown-bar {
+  height: 4px;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.1s linear;
+}
+
+.countdown-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 30px;
+}
+
+.btn-cancel {
+  font-size: 11px;
+  padding: 5px 12px;
+  border-radius: 5px;
+  border: 1px solid var(--accent-red);
+  background: var(--accent-red-dim);
+  color: var(--accent-red);
+  cursor: pointer;
 }
 
 /* ── Cards ───────────────────────────────────── */
@@ -301,6 +385,13 @@ pre {
 
 <div id="incomingAction"></div>
 
+<div class="connectors card" id="connectorsPanel">
+  <div class="card-label" style="margin-bottom:12px; cursor:pointer" onclick="toggleConnectors()">
+    CONECTORES <span id="connectorsCaret">▾</span>
+  </div>
+  <div id="connectorsBody"></div>
+</div>
+
 <div class="toolbar">
   <button onclick="exportMemory()">Exportar memoria</button>
   <button onclick="clearMemory()">Limpiar memoria</button>
@@ -329,7 +420,6 @@ pre {
 <script>
 // ═══════════════════════════════════════════════
 // ACTION REGISTRY
-// Para agregar una acción nueva: una entrada acá.
 // ═══════════════════════════════════════════════
 
 const ACTIONS = {
@@ -386,7 +476,19 @@ const ACTIONS = {
       { key: "entity", label: "Entidad" },
       { key: "key",    label: "Clave"   },
     ],
-    // execute se sobreescribe abajo para incluir el textarea
+    execute: null
+  },
+
+  blogger_post: {
+    title: "📝 Publicar en Blogger",
+    color: "panel-green",
+    btnColor: "",
+    btnLabel: "Publicar en Blogger",
+    fields: [
+      { key: "title",   label: "Título"  },
+      { key: "labels",  label: "Labels"  },
+      { key: "page_id", label: "Post ID" },
+    ],
     execute: null
   },
 
@@ -403,7 +505,7 @@ let state = (() => {
     const s = localStorage.getItem(STORAGE_KEY);
     if (s) return JSON.parse(s);
   } catch(e) {}
-  return { entity: "demo", actions: [], memory: {}, logs: [] };
+  return { entity: "demo", actions: [], memory: {}, logs: [], connectorModes: {} };
 })();
 
 function saveState() {
@@ -477,7 +579,6 @@ function receiveAction() {
   const def = ACTIONS[action];
 
   if (!def) {
-    // Acción genérica desconocida
     el.innerHTML = panel("panel-neutral", `Acción: ${esc(action)}`,
       `<pre>${JSON.stringify(payload, null, 2)}</pre>
        <button class="btn-primary" id="executeBtn">Ejecutar</button>`);
@@ -491,24 +592,65 @@ function receiveAction() {
     .map(f => `<p class="panel-row"><b>${f.label}:</b> ${f.prefix || ""}${esc(payload[f.key])}</p>`)
     .join("");
 
-  // memory_write: agrega textarea para el valor largo
-  const extraHtml = action === "memory_write"
-    ? `<textarea class="memory-textarea" id="memoryContent" placeholder="Escribí o pegá el contenido aquí...">${esc(payload.value || "")}</textarea>`
+  const extraHtml = (action === "memory_write" || action === "blogger_post")
+    ? `<textarea class="memory-textarea" id="memoryContent"
+         placeholder="Contenido...">${esc(payload.content || payload.value || "")}</textarea>`
     : "";
+
+  // countdown
+  const isAuto = (state.connectorModes?.[action] === "auto");
+  const countdownSecs = isAuto ? 3 : 10;
 
   el.innerHTML = panel(def.color, def.title,
     `${fieldRows}${extraHtml}
-     <button class="btn-primary ${def.btnColor}" id="executeBtn">${def.btnLabel}</button>`);
+     <div class="countdown-wrap">
+       <div class="countdown-bar-bg"><div class="countdown-bar" id="cbar" style="width:100%"></div></div>
+       <span class="countdown-label" id="clabel">${countdownSecs}s</span>
+       <button class="btn-cancel" id="cancelBtn">Cancelar</button>
+       <button class="btn-primary ${def.btnColor}" id="executeBtn">${def.btnLabel}</button>
+     </div>`);
+
+  // countdown logic
+  let remaining = countdownSecs;
+  let cancelled = false;
+  const interval = setInterval(() => {
+    remaining -= 0.1;
+    const pct = (remaining / countdownSecs) * 100;
+    document.getElementById("cbar").style.width = pct + "%";
+    document.getElementById("clabel").textContent = Math.ceil(remaining) + "s";
+    if (remaining <= 0 && !cancelled) {
+      clearInterval(interval);
+      if (!isAuto) return; // manual: solo cuenta, no ejecuta
+      doExecute();
+    }
+  }, 100);
+
+  document.getElementById("cancelBtn").onclick = () => {
+    cancelled = true;
+    clearInterval(interval);
+    document.getElementById("cbar").style.width = "0%";
+    document.getElementById("clabel").textContent = "—";
+    document.getElementById("cancelBtn").style.display = "none";
+    log("ACTION_CANCELLED: " + action);
+    saveState();
+  };
 
   document.getElementById("executeBtn").onclick = () => {
-    if (action === "memory_write") {
+    cancelled = true;
+    clearInterval(interval);
+    doExecute();
+  };
+
+  function doExecute() {
+    if (action === "memory_write" || action === "blogger_post") {
       const value = document.getElementById("memoryContent").value;
-      const p = new URLSearchParams({ ...payload, value });
-      window.location.href = `/api/portalk?action=memory_write&${p.toString()}`;
+      const key = action === "memory_write" ? "value" : "content";
+      const p = new URLSearchParams({ ...payload, [key]: value });
+      window.location.href = `/api/portalk?action=${action}&${p.toString()}`;
     } else {
       window.location.href = def.execute(payload);
     }
-  };
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -586,6 +728,57 @@ function render() {
       ? '<div class="empty">Sin logs</div>'
       : state.logs.map(l => `
           <div class="log-line">[${l.ts.slice(11,19)}] ${esc(l.message)}</div>`).join("");
+
+  renderConnectors();
+}
+
+// ═══════════════════════════════════════════════
+// CONNECTORS
+// ═══════════════════════════════════════════════
+
+function toggleConnectors() {
+  const body = document.getElementById("connectorsBody");
+  const caret = document.getElementById("connectorsCaret");
+  body.style.display = body.style.display === "none" ? "" : "none";
+  caret.textContent = body.style.display === "none" ? "▸" : "▾";
+}
+
+function renderConnectors() {
+  const CONNECTOR_LIST = [
+    { id: "calendar",       label: "Google Calendar", implemented: true  },
+    { id: "payment",        label: "Mercado Pago",     implemented: true  },
+    { id: "blogger_post",   label: "Blogger",          implemented: true  },
+    { id: "github_issue",   label: "GitHub Issues",    implemented: true  },
+    { id: "github_write",   label: "GitHub Write",     implemented: true  },
+    { id: "memory_write",   label: "Redis Memory",     implemented: true  },
+    { id: "sheets_read",    label: "Google Sheets",    implemented: false },
+  ];
+
+  const body = document.getElementById("connectorsBody");
+  if (!state.connectorModes) state.connectorModes = {};
+
+  body.innerHTML = CONNECTOR_LIST.map(c => {
+    const mode = state.connectorModes[c.id] || "manual";
+    const statusHtml = c.implemented
+      ? `<span class="connector-status online">● online</span>`
+      : `<span class="connector-status offline">○ pendiente</span>`;
+    const toggleHtml = c.implemented
+      ? `<button class="toggle-mode ${mode === "auto" ? "auto" : ""}"
+           onclick="toggleMode('${c.id}')">${mode === "auto" ? "auto" : "manual"}</button>`
+      : `<button class="toggle-mode" disabled style="opacity:0.3">—</button>`;
+    return `<div class="connector-row">
+      <span class="connector-name">${c.label}</span>
+      ${statusHtml}
+      ${toggleHtml}
+    </div>`;
+  }).join("");
+}
+
+function toggleMode(id) {
+  if (!state.connectorModes) state.connectorModes = {};
+  state.connectorModes[id] = state.connectorModes[id] === "auto" ? "manual" : "auto";
+  saveState();
+  renderConnectors();
 }
 
 // ═══════════════════════════════════════════════
