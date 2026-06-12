@@ -1,380 +1,441 @@
-:root {
-  --bg: #0a0a0c;
-  --surface: #131316;
-  --surface-raised: #1a1a1f;
-  --border: #2a2a30;
-  --accent: #00e676;
-  --accent-dim: #00e67614;
-  --accent-blue: #448aff;
-  --accent-blue-dim: #448aff14;
-  --accent-amber: #ffab40;
-  --accent-amber-dim: #ffab4014;
-  --accent-red: #ff5252;
-  --accent-red-dim: #ff525214;
-  --text: #e8e8ec;
-  --text-muted: #6a6a75;
-  --font-display: 'Space Grotesk', sans-serif;
-  --font-mono: 'DM Mono', monospace;
-  --radius: 8px;
+// ═══════════════════════════════════════════════
+// ACTION REGISTRY
+// Para agregar una acción nueva: una entrada acá.
+// ═══════════════════════════════════════════════
+
+const ACTIONS = {
+
+  create_appointment: {
+    title: "📅 Agendar turno",
+    color: "panel-blue",
+    btnColor: "blue",
+    btnLabel: "Confirmar y agendar en Google Calendar",
+    fields: [
+      { key: "name",    label: "Cliente"  },
+      { key: "service", label: "Servicio" },
+      { key: "date",    label: "Fecha"    },
+      { key: "time",    label: "Hora"     },
+      { key: "notes",   label: "Notas"    },
+    ],
+    execute: p => `/api/portalk?action=calendar&${qs(p)}`
+  },
+
+  create_payment: {
+    title: "💳 Confirmar pago",
+    color: "panel-amber",
+    btnColor: "amber",
+    btnLabel: "Pagar con Mercado Pago",
+    fields: [
+      { key: "description", label: "Servicio" },
+      { key: "amount",      label: "Importe", prefix: "$" },
+      { key: "name",        label: "Cliente"  },
+      { key: "payer_email", label: "Email"    },
+    ],
+    execute: p => `/api/portalk?action=payment&${qs(p)}`
+  },
+
+  create_issue: {
+    title: "🐛 Crear issue en GitHub",
+    color: "panel-neutral",
+    btnColor: "",
+    btnLabel: "Crear issue",
+    fields: [
+      { key: "repo",  label: "Repo"        },
+      { key: "title", label: "Título"      },
+      { key: "body",  label: "Descripción" },
+      { key: "label", label: "Label"       },
+    ],
+    execute: p => `/api/portalk?action=github_issue&${qs(p)}`
+  },
+
+  memory_write: {
+    title: "💾 Guardar en memoria",
+    color: "panel-green",
+    btnColor: "",
+    btnLabel: "Guardar",
+    fields: [
+      { key: "entity", label: "Entidad" },
+      { key: "key",    label: "Clave"   },
+    ],
+    hasTextarea: true,
+    execute: null
+  },
+
+  blogger_post: {
+    title: "📝 Publicar en Blogger",
+    color: "panel-green",
+    btnColor: "",
+    btnLabel: "Publicar",
+    fields: [
+      { key: "title",   label: "Título"  },
+      { key: "labels",  label: "Labels"  },
+      { key: "page_id", label: "Post ID" },
+    ],
+    hasTextarea: true,
+    execute: null
+  },
+
+};
+
+// ═══════════════════════════════════════════════
+// CONNECTORS REGISTRY
+// Lista canónica de conectores disponibles
+// ═══════════════════════════════════════════════
+
+const CONNECTORS = [
+  { id: "calendar",     label: "G-Cal",   implemented: true  },
+  { id: "blogger_post", label: "Blogger", implemented: true  },
+  { id: "github_write", label: "GitHub",  implemented: true  },
+  { id: "payment",      label: "MPago",   implemented: true  },
+  { id: "memory_write", label: "Redis",   implemented: true  },
+  { id: "sheets_read",  label: "Sheets",  implemented: false },
+];
+
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+
+const STORAGE_KEY = "portalk_state";
+
+let state = (() => {
+  try {
+    const s = localStorage.getItem(STORAGE_KEY);
+    if (s) {
+      const parsed = JSON.parse(s);
+      // Asegurar campos nuevos en estados viejos
+      if (!parsed.connectorModes) parsed.connectorModes = {};
+      return parsed;
+    }
+  } catch(e) {}
+  return { entity: "demo", actions: [], memory: {}, logs: [], connectorModes: {} };
+})();
+
+function saveState() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+  render();
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-body {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  background: var(--bg);
-  color: var(--text);
-  height: 100vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  padding: 12px 16px;
-  line-height: 1.4;
+function log(msg) {
+  state.logs.unshift({ ts: new Date().toISOString(), message: msg });
+  state.logs = state.logs.slice(0, 100);
+  saveState();
 }
 
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(ellipse at 15% 20%, #00e67606 0%, transparent 50%),
-    radial-gradient(ellipse at 85% 80%, #448aff05 0%, transparent 50%);
-  pointer-events: none;
-  z-index: 0;
+// ═══════════════════════════════════════════════
+// INCOMING ACTION HANDLER
+// ═══════════════════════════════════════════════
+
+function receiveAction() {
+  const params = new URLSearchParams(window.location.search);
+  const action = params.get("action");
+  const status = params.get("status");
+  const mode   = params.get("mode");
+  const el     = document.getElementById("incomingAction");
+
+  // ── Setup OAuth ──────────────────────────────
+  if (mode === "setup") {
+    el.innerHTML = panel("panel-blue", "Conectar Google",
+      `<p class="panel-row">Conectá tu cuenta para habilitar Calendar y Blogger.</p>
+       <button class="btn-primary blue" onclick="window.location.href='/api/auth/google?mode=setup'">
+         Conectar Google
+       </button>`);
+    return;
+  }
+
+  // ── Status returns ───────────────────────────
+  const STATUS_MAP = {
+    ok:              { color: "panel-green", icon: "✅", title: "Turno agendado",
+      body: p => link(p.get("event"), "Ver en Google Calendar →") },
+    github_ok:       { color: "panel-green", icon: "✅", title: "Issue creado",
+      body: p => `<p class="panel-row"><b>${esc(p.get("title"))}</b></p>` + link(p.get("issue_url"), `Ver issue #${p.get("issue_number")} →`) },
+    memory_ok:       { color: "panel-green", icon: "💾", title: "Guardado en memoria",
+      body: p => `<p class="panel-row"><b>Entidad:</b> ${esc(p.get("entity"))}</p><p class="panel-row"><b>Clave:</b> ${esc(p.get("key"))}</p>` },
+    payment_ok:      { color: "panel-green", icon: "✅", title: "Pago confirmado",
+      body: p => rows({ Cliente: p.get("name"), Servicio: p.get("description"), Importe: "$" + p.get("amount") }) },
+    payment_fail:    { color: "panel-red",   icon: "❌", title: "Pago no completado",
+      body: () => `<p class="panel-row">Podés reintentar desde el enlace original.</p>` },
+    payment_pending: { color: "panel-amber", icon: "⏳", title: "Pago pendiente",
+      body: () => `<p class="panel-row">El pago está siendo procesado.</p>` },
+    blogger_ok:      { color: "panel-green", icon: "✅", title: "Publicado en Blogger",
+      body: p => `<p class="panel-row"><b>${esc(p.get("title"))}</b></p>` + link(p.get("post_url"), "Ver post →") },
+    sheets_ok:       { color: "panel-green", icon: "✅", title: "Guardado en Sheets",
+      body: p => `<p class="panel-row"><b>Key:</b> ${esc(p.get("key"))}</p>` },
+  };
+
+  if (status && STATUS_MAP[status]) {
+    const s = STATUS_MAP[status];
+    log(`STATUS: ${status}`);
+    // Limpiar URL para evitar re-ejecución accidental al recargar
+    history.replaceState({}, '', '/portal.html');
+    el.innerHTML = panel(s.color, `${s.icon} ${s.title}`, s.body(params));
+    saveState();
+    return;
+  }
+
+  if (!action) return;
+
+  // ── Pending action ───────────────────────────
+  const payload = {};
+  for (const [k, v] of params.entries()) {
+    if (k !== "action") payload[k] = v;
+  }
+
+  log(`ACTION_RECEIVED: ${action}`);
+
+  // Limpiar URL inmediatamente para evitar re-ejecución
+  history.replaceState({}, '', '/portal.html');
+
+  const def = ACTIONS[action];
+
+  if (!def) {
+    el.innerHTML = panel("panel-neutral", `⚙️ Acción: ${esc(action)}`,
+      `<pre>${JSON.stringify(payload, null, 2)}</pre>`);
+    renderCountdown(el, action, payload, null, false);
+    return;
+  }
+
+  // ── Detectar modo auto/manual del conector ───
+  const isAuto = state.connectorModes?.[action] === "auto";
+  const secs   = isAuto ? 3 : 10;
+
+  // ── Renderizar campos ────────────────────────
+  const fieldRows = (def.fields || [])
+    .filter(f => payload[f.key])
+    .map(f => `<p class="panel-row"><b>${f.label}:</b> ${f.prefix || ""}${esc(payload[f.key])}</p>`)
+    .join("");
+
+  const extraHtml = def.hasTextarea
+    ? `<textarea class="memory-textarea" id="memoryContent"
+         placeholder="Contenido...">${esc(payload.content || payload.value || "")}</textarea>`
+    : "";
+
+  const autoBadge = isAuto
+    ? `<span class="auto-badge">AUTO ${secs}s</span>`
+    : `<span class="auto-badge" style="opacity:0.4">MAN ${secs}s</span>`;
+
+  el.innerHTML = panel(def.color,
+    `<span>${def.title}</span>${autoBadge}`,
+    `${fieldRows}${extraHtml}`
+  );
+
+  // Inyectar el countdown después de renderizar
+  renderCountdown(el, action, payload, def, isAuto, secs);
 }
 
-/* ── Layout ──────────────────────────────────── */
+// ── Countdown ────────────────────────────────────────────────
+function renderCountdown(el, action, payload, def, isAuto, secs = 10) {
+  const wrap = document.createElement("div");
+  wrap.className = "countdown-wrap";
+  wrap.innerHTML = `
+    <div class="countdown-bar-bg"><div class="countdown-bar" id="cbar" style="width:100%"></div></div>
+    <span class="countdown-label" id="clabel">${secs}s</span>
+    <button class="btn-cancel" id="cancelBtn">Cancelar</button>
+    <button class="btn-primary ${def?.btnColor || ""}" id="executeBtn">${def?.btnLabel || "Ejecutar"}</button>
+  `;
 
-.main-container {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  gap: 8px;
+  // Agregar al panel existente
+  el.querySelector(".panel").appendChild(wrap);
+
+  let remaining = secs;
+  let cancelled = false;
+
+  const interval = setInterval(() => {
+    remaining -= 0.1;
+    const pct = Math.max(0, (remaining / secs) * 100);
+    const barEl = document.getElementById("cbar");
+    const lblEl = document.getElementById("clabel");
+    if (barEl) barEl.style.width = pct + "%";
+    if (lblEl) lblEl.textContent = Math.ceil(remaining) + "s";
+
+    if (remaining <= 0 && !cancelled) {
+      clearInterval(interval);
+      if (isAuto) doExecute();
+      else {
+        // Manual: countdown llegó a 0 pero no ejecuta, solo avisa
+        if (lblEl) lblEl.textContent = "—";
+        if (barEl) barEl.style.background = "var(--border)";
+      }
+    }
+  }, 100);
+
+  document.getElementById("cancelBtn").onclick = () => {
+    cancelled = true;
+    clearInterval(interval);
+    const barEl = document.getElementById("cbar");
+    const lblEl = document.getElementById("clabel");
+    if (barEl) barEl.style.width = "0%";
+    if (lblEl) lblEl.textContent = "✕";
+    log(`ACTION_CANCELLED: ${action}`);
+    saveState();
+    // Ocultar botones y mostrar mensaje
+    document.getElementById("cancelBtn").style.display = "none";
+    document.getElementById("executeBtn").style.display = "none";
+    el.querySelector(".panel").insertAdjacentHTML("beforeend",
+      `<p class="panel-row" style="margin-top:6px; color:var(--accent-red)">Cancelado.</p>`);
+  };
+
+  document.getElementById("executeBtn").onclick = () => {
+    cancelled = true;
+    clearInterval(interval);
+    doExecute();
+  };
+
+  function doExecute() {
+    log(`ACTION_EXECUTED: ${action}`);
+    saveState();
+
+    if (!def) {
+      executeGeneric(action, payload);
+      return;
+    }
+
+    if (def.hasTextarea) {
+      // memory_write o blogger_post: leer textarea
+      const ta = document.getElementById("memoryContent");
+      const textVal = ta ? ta.value : "";
+      const key = action === "memory_write" ? "value" : "content";
+      const p = new URLSearchParams({ ...payload, [key]: textVal });
+      window.location.href = `/api/portalk?action=${action}&${p.toString()}`;
+    } else {
+      window.location.href = def.execute(payload);
+    }
+  }
 }
 
-.header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+// ═══════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════
+
+function render() {
+  const entityEl = document.getElementById("entityBadge");
+  if (entityEl) entityEl.textContent = state.entity;
+
+  const stateEl = document.getElementById("stateView");
+  if (stateEl) stateEl.textContent = JSON.stringify({
+    acciones: state.actions.length,
+    logs: state.logs.length,
+    entity: state.entity,
+  }, null, 2);
+
+  const memEl = document.getElementById("memoryView");
+  if (memEl) memEl.textContent =
+    Object.keys(state.memory).length
+      ? JSON.stringify(state.memory, null, 2)
+      : "// vacío";
+
+  const logsEl = document.getElementById("logsView");
+  if (logsEl) logsEl.innerHTML =
+    state.logs.length === 0
+      ? '<div class="empty">Sin actividad</div>'
+      : state.logs.map(l => `
+          <div class="log-line">
+            <span>${esc(l.message)}</span>
+            <span class="ts">${l.ts.slice(11,16)}</span>
+          </div>`).join("");
+
+  renderConnectors();
 }
 
-h1 {
-  font-family: var(--font-display);
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+// ═══════════════════════════════════════════════
+// CONNECTORS
+// ═══════════════════════════════════════════════
+
+function renderConnectors() {
+  const body = document.getElementById("connectorsBody");
+  if (!body) return;
+
+  body.innerHTML = CONNECTORS.map(c => {
+    const isAuto = state.connectorModes?.[c.id] === "auto";
+    const dotClass = c.implemented ? "on" : "off";
+    const toggleClass = isAuto ? "auto" : "";
+    const toggleLabel = isAuto ? "AUTO" : "MAN";
+    const disabledAttr = c.implemented ? "" : "disabled style='opacity:0.3; cursor:default'";
+
+    return `<div class="conn-item">
+      <div class="conn-dot ${dotClass}"></div>
+      <span class="conn-name">${c.label}</span>
+      <span class="conn-toggle ${toggleClass}" onclick="toggleConn('${c.id}')" ${disabledAttr}>
+        ${toggleLabel}
+      </span>
+    </div>`;
+  }).join("");
 }
 
-/* ── Badge ───────────────────────────────────── */
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: var(--accent-dim);
-  border: 1px solid #00e67628;
-  font-size: 10px;
-  color: var(--accent);
-  text-transform: uppercase;
+function toggleConn(id) {
+  const connector = CONNECTORS.find(c => c.id === id);
+  if (!connector?.implemented) return;
+  if (!state.connectorModes) state.connectorModes = {};
+  state.connectorModes[id] = state.connectorModes[id] === "auto" ? "manual" : "auto";
+  saveState();
 }
 
-.badge::before {
-  content: '';
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: pulse 2s ease infinite;
+// ═══════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════
+
+function panel(color, title, body) {
+  return `<div class="panel ${color}">
+    <div class="panel-title">${title}</div>
+    ${body}
+  </div>`;
 }
 
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-
-/* ── Connectors bar ──────────────────────────── */
-
-.connectors-bar {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 5px 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
+function rows(obj) {
+  return Object.entries(obj)
+    .filter(([, v]) => v)
+    .map(([k, v]) => `<p class="panel-row"><b>${k}:</b> ${esc(v)}</p>`)
+    .join("");
 }
 
-.conn-label {
-  color: var(--text-muted);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  margin-right: 2px;
+function link(url, label) {
+  if (!url) return "";
+  return `<p class="panel-row"><a href="${esc(url)}" target="_blank">${label}</a></p>`;
 }
 
-.conn-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 7px;
-  border-radius: 4px;
-  background: #0d0d10;
-  border: 1px solid var(--border);
-  font-size: 10px;
+function qs(obj) {
+  return new URLSearchParams(obj).toString();
 }
 
-.conn-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.conn-dot.on  { background: var(--accent); box-shadow: 0 0 4px var(--accent); }
-.conn-dot.off { background: var(--text-muted); }
-
-.conn-name { color: var(--text); }
-
-.conn-toggle {
-  cursor: pointer;
-  font-size: 9px;
-  padding: 1px 5px;
-  border-radius: 3px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-muted);
-  transition: all 0.15s;
-  margin-left: 2px;
-}
-.conn-toggle:hover { border-color: var(--text-muted); color: var(--text); background: transparent; transform: none; }
-.conn-toggle.auto { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
-
-/* ── Action panel ────────────────────────────── */
-
-#incomingAction { flex-shrink: 0; }
-
-.panel {
-  border-radius: var(--radius);
-  padding: 12px 16px;
-  border: 1px solid transparent;
-  animation: slideIn 0.2s ease;
+function esc(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-.panel-green   { background: var(--accent-dim);       border-color: #00e67628; }
-.panel-blue    { background: var(--accent-blue-dim);  border-color: #448aff28; }
-.panel-amber   { background: var(--accent-amber-dim); border-color: #ffab4028; }
-.panel-red     { background: var(--accent-red-dim);   border-color: #ff525228; }
-.panel-neutral { background: var(--surface);          border-color: var(--border); }
-
-@keyframes slideIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
+function executeGeneric(action, payload) {
+  const record = {
+    id: crypto.randomUUID(),
+    action, payload,
+    status: "completed",
+    timestamp: new Date().toISOString()
+  };
+  state.actions.unshift(record);
+  Object.assign(state.memory, payload);
+  log(`ACTION_EXECUTED: ${action}`);
+  saveState();
+  document.getElementById("incomingAction").innerHTML =
+    panel("panel-green", "✅ Ejecutado", `<pre>${JSON.stringify(record, null, 2)}</pre>`);
 }
 
-.panel-title {
-  font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+// ═══════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════
+
+function exportMemory() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url; a.download = "portalk_memory.json"; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-.panel-title .auto-badge {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 400;
-  color: var(--accent);
-  border: 1px solid #00e67628;
-  padding: 1px 6px;
-  border-radius: 3px;
-  background: var(--accent-dim);
+function clearMemory() {
+  if (!confirm("¿Eliminar toda la memoria local?")) return;
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+  location.reload();
 }
 
-.panel-row { font-size: 11px; color: var(--text-muted); padding: 2px 0; }
-.panel-row b { color: var(--text); font-weight: 500; }
-.panel-row a { color: var(--accent-blue); text-decoration: none; }
-.panel-row a:hover { text-decoration: underline; }
+// ── Init ──────────────────────────────────────
 
-/* ── Textarea ─────────────────────────────────── */
-
-.memory-textarea {
-  width: 100%;
-  min-height: 60px;
-  max-height: 100px;
-  background: #0d0d10;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--accent);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 8px;
-  resize: vertical;
-  margin: 8px 0 0;
-  outline: none;
-  line-height: 1.5;
-}
-.memory-textarea:focus { border-color: #00e67640; }
-
-/* ── Countdown ────────────────────────────────── */
-
-.countdown-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  flex-wrap: wrap;
-}
-
-.countdown-bar-bg {
-  flex: 1;
-  height: 3px;
-  background: var(--border);
-  border-radius: 2px;
-  min-width: 60px;
-}
-
-.countdown-bar {
-  height: 3px;
-  background: var(--accent);
-  border-radius: 2px;
-  transition: width 0.1s linear;
-}
-
-.countdown-label {
-  font-size: 10px;
-  color: var(--text-muted);
-  width: 24px;
-  text-align: right;
-  flex-shrink: 0;
-}
-
-/* ── Buttons ──────────────────────────────────── */
-
-button {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 5px 11px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-button:hover {
-  border-color: var(--text-muted);
-  color: var(--text);
-  background: var(--surface-raised);
-  transform: none;
-}
-
-.btn-primary {
-  background: var(--accent);
-  color: #0a0a0c;
-  border: none;
-  padding: 6px 16px;
-  border-radius: 4px;
-  font-family: var(--font-display);
-  font-size: 12px;
-  font-weight: 600;
-}
-.btn-primary:hover { background: #33eb91; transform: translateY(-1px); box-shadow: 0 4px 14px #00e67628; color: #0a0a0c; }
-.btn-primary.blue  { background: var(--accent-blue); }
-.btn-primary.blue:hover  { background: #6aa3ff; box-shadow: 0 4px 14px #448aff28; color: #0a0a0c; }
-.btn-primary.amber { background: var(--accent-amber); }
-.btn-primary.amber:hover { background: #ffc570; box-shadow: 0 4px 14px #ffab4028; color: #0a0a0c; }
-
-.btn-cancel {
-  background: var(--accent-red-dim);
-  color: var(--accent-red);
-  border-color: #ff525240;
-}
-.btn-cancel:hover { background: var(--accent-red-dim); color: var(--accent-red); border-color: var(--accent-red); }
-
-/* ── Dashboard grid ───────────────────────────── */
-
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
-  flex: 1;
-  min-height: 0;
-}
-
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.card-header {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: 6px;
-  display: flex;
-  justify-content: space-between;
-  flex-shrink: 0;
-}
-
-.card-content {
-  flex: 1;
-  overflow-y: auto;
-}
-
-pre {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--accent);
-  white-space: pre-wrap;
-  word-break: break-all;
-  line-height: 1.5;
-}
-
-.log-line {
-  padding: 3px 0;
-  border-bottom: 1px solid #1a1a1f;
-  font-size: 10px;
-  color: var(--text-muted);
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
-.log-line:last-child { border-bottom: none; }
-.log-line .ts { color: var(--text-muted); opacity: 0.6; flex-shrink: 0; }
-
-.empty { color: var(--text-muted); font-size: 10px; font-style: italic; padding: 4px 0; }
-
-/* ── Scrollbars ───────────────────────────────── */
-
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-/* ── Mobile ───────────────────────────────────── */
-
-@media (max-width: 768px) {
-  body { height: auto; overflow: auto; }
-  .main-container { height: auto; }
-  .dashboard-grid { grid-template-columns: 1fr; }
-  .connectors-bar { flex-direction: column; align-items: flex-start; }
-  .btn-primary { width: 100%; margin-top: 8px; }
-  .countdown-wrap { flex-wrap: wrap; }
-}
+render();
+receiveAction();
