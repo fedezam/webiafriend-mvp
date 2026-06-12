@@ -1,6 +1,3 @@
-Aquí tienes el código de `public/portal.js` con **únicamente** la adición de la entrada `github_write` en el objeto `ACTIONS`, tal como solicitaste.
-
-```javascript
 // ═══════════════════════════════════════════════
 // ACTION REGISTRY
 // ═══════════════════════════════════════════════
@@ -453,4 +450,3 @@ function clearMemory() {
 // ── Init ──────────────────────────────────────
 render();
 receiveAction();
-```
