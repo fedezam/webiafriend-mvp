@@ -14,9 +14,10 @@ const RENDER_REPO_MAP = {
 };
 
 // Token separado de solo lectura para esta capa de render.
-// Si no está configurado, cae al GITHUB_TOKEN normal (no ideal a largo plazo,
-// pero funciona para arrancar).
+// Si no está configurado, cae al GITHUB_TOKEN normal.
 const RENDER_GITHUB_TOKEN = process.env.GITHUB_TOKEN_RENDER_ONLY || process.env.GITHUB_TOKEN;
+
+const BASE_URL = "https://webiafriend-mvp.vercel.app";
 
 // ── Helper: escape HTML básico ──────────────────────────────
 function escapeHtml(str = "") {
@@ -26,6 +27,21 @@ function escapeHtml(str = "") {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+// ── Helper: generar código de autorización ───────────────────
+function generateAuthCode() {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
+// ── Helper: chequear si un código está aprobado para un scope ──
+async function checkAuth(code, requiredScope) {
+  if (!code) return false;
+  const raw = await redis.get(`authreq:${code}`);
+  if (!raw) return false;
+
+  const data = typeof raw === "string" ? JSON.parse(raw) : raw;
+  return data.status === "approved" && data.scope === requiredScope;
 }
 
 export default async function handler(req, res) {
@@ -43,6 +59,11 @@ export default async function handler(req, res) {
     // ── Render público (para LLMs / navegación) ──
     case "render_tree":  return handleRenderTree(req, res);
     case "render_file":  return handleRenderFile(req, res);
+
+    // ── Autorización por código ──────────────────
+    case "request_access": return handleRequestAccess(req, res);
+    case "approve_access": return handleApproveAccess(req, res);
+    case "confirm_access": return handleConfirmAccess(req, res);
 
     // ── Memoria ──────────────────────────────────
     case "memory_read":  return handleMemoryRead(req, res);
@@ -164,12 +185,21 @@ async function handleGithubIssue(req, res) {
 
 // ── Render: árbol navegable (HTML) ───────────────────────────
 async function handleRenderTree(req, res) {
-  const { id, branch: branchOverride } = req.query;
+  const { id, auth, branch: branchOverride } = req.query;
 
   if (!id) return res.status(400).send("id requerido");
 
   const entry = RENDER_REPO_MAP[id];
   if (!entry) return res.status(404).send("id no encontrado");
+
+  const authorized = await checkAuth(auth, id);
+  if (!authorized) {
+    return res.status(403).json({
+      status: "pending_authorization",
+      message: "Acceso no autorizado. Solicitá autorización primero.",
+      request_url: `${BASE_URL}/api/portalk?action=request_access&scope=${encodeURIComponent(id)}`
+    });
+  }
 
   const repo = entry.repo;
   const branch = branchOverride || entry.branch || "main";
@@ -231,7 +261,7 @@ ${data.truncated ? `<p class="warn">⚠ El árbol fue truncado por GitHub (repo 
 <ul>
 ${files.map(path => `
 <li>
-<a href="/api/portalk?action=render_file&id=${encodeURIComponent(id)}&path=${encodeURIComponent(path)}">
+<a href="/api/portalk?action=render_file&id=${encodeURIComponent(id)}&auth=${encodeURIComponent(auth)}&path=${encodeURIComponent(path)}">
 ${escapeHtml(path)}
 </a>
 </li>
@@ -248,12 +278,21 @@ ${escapeHtml(path)}
 
 // ── Render: contenido de archivo (HTML) ──────────────────────
 async function handleRenderFile(req, res) {
-  const { id, path, branch: branchOverride } = req.query;
+  const { id, path, auth, branch: branchOverride } = req.query;
 
   if (!id || !path) return res.status(400).send("id y path requeridos");
 
   const entry = RENDER_REPO_MAP[id];
   if (!entry) return res.status(404).send("id no encontrado");
+
+  const authorized = await checkAuth(auth, id);
+  if (!authorized) {
+    return res.status(403).json({
+      status: "pending_authorization",
+      message: "Acceso no autorizado. Solicitá autorización primero.",
+      request_url: `${BASE_URL}/api/portalk?action=request_access&scope=${encodeURIComponent(id)}`
+    });
+  }
 
   const repo = entry.repo;
   const branch = branchOverride || entry.branch || "main";
@@ -276,8 +315,6 @@ async function handleRenderFile(req, res) {
 
   const safePath = escapeHtml(path);
 
-  // Archivos no-base64 (ej: muy grandes, GitHub no devuelve content)
-  // o binarios que no tiene sentido mostrar como texto
   const looksBinary = data.encoding !== "base64" || !data.content;
 
   let bodyHtml;
@@ -337,7 +374,7 @@ pre{
 <h1>${safePath}</h1>
 
 <p>
-<a href="/api/portalk?action=render_tree&id=${encodeURIComponent(id)}">⟵ volver al árbol</a>
+<a href="/api/portalk?action=render_tree&id=${encodeURIComponent(id)}&auth=${encodeURIComponent(auth)}">⟵ volver al árbol</a>
 </p>
 
 ${bodyHtml}
@@ -348,6 +385,127 @@ ${bodyHtml}
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   return res.send(html);
+}
+
+// ── request_access: el LLM pide permiso ──────────────────────
+async function handleRequestAccess(req, res) {
+  const { scope } = req.query;
+  if (!scope) return res.status(400).json({ error: "scope requerido" });
+
+  const code = generateAuthCode();
+
+  await redis.set(
+    `authreq:${code}`,
+    JSON.stringify({ scope, status: "pending", created: Date.now() }),
+    { ex: 300 } // 5 minutos para que el humano apruebe
+  );
+
+  const approveUrl =
+    `${BASE_URL}/api/portalk?action=approve_access&code=${encodeURIComponent(code)}`;
+
+  return res.json({
+    status: "pending_authorization",
+    code,
+    scope,
+    approve_url: approveUrl,
+    message: "Pedile al usuario que abra approve_url y confirme. Luego reintentá la acción original agregando &auth=" + code
+  });
+}
+
+// ── approve_access: muestra pantalla de confirmación (NO ejecuta) ──
+async function handleApproveAccess(req, res) {
+  const { code } = req.query;
+  if (!code) return res.status(400).send("code requerido");
+
+  const raw = await redis.get(`authreq:${code}`);
+  if (!raw) return res.status(404).send("Código inválido o expirado.");
+
+  const data = typeof raw === "string" ? JSON.parse(raw) : raw;
+
+  if (data.status === "approved") {
+    return res.send(`
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Ya aprobado</title></head>
+<body style="font-family:system-ui;max-width:480px;margin:60px auto;text-align:center;">
+<h1>✅ Ya aprobado</h1>
+<p>Este acceso (scope: <code>${escapeHtml(data.scope)}</code>) ya fue aprobado anteriormente.</p>
+<p>Código: <code>${escapeHtml(code)}</code></p>
+</body></html>
+`);
+  }
+
+  const confirmUrl =
+    `/api/portalk?action=confirm_access&code=${encodeURIComponent(code)}`;
+
+  const html = `
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Autorización solicitada</title>
+<style>
+body{
+  font-family: system-ui, sans-serif;
+  max-width:480px;
+  margin:60px auto;
+  padding:24px;
+  text-align:center;
+}
+.btn{
+  display:inline-block;
+  margin-top:24px;
+  padding:14px 28px;
+  background:#22c55e;
+  color:#022c22;
+  text-decoration:none;
+  border-radius:10px;
+  font-weight:600;
+}
+.code{
+  font-family:monospace;
+  background:#f5f5f5;
+  padding:4px 8px;
+  border-radius:6px;
+}
+</style>
+</head>
+<body>
+<h1>🔐 Solicitud de acceso</h1>
+<p>Un asistente (LLM) está solicitando acceso de lectura a:</p>
+<p class="code">${escapeHtml(data.scope)}</p>
+<p>Si no iniciaste esta acción, ignorá esta página — no se ejecuta nada hasta que aprobés.</p>
+<a class="btn" href="${confirmUrl}">Aprobar acceso</a>
+</body>
+</html>
+`;
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  return res.send(html);
+}
+
+// ── confirm_access: el click real que aprueba ────────────────
+async function handleConfirmAccess(req, res) {
+  const { code } = req.query;
+  if (!code) return res.status(400).send("code requerido");
+
+  const raw = await redis.get(`authreq:${code}`);
+  if (!raw) return res.status(404).send("Código inválido o expirado.");
+
+  const data = typeof raw === "string" ? JSON.parse(raw) : raw;
+  data.status = "approved";
+  data.approved_at = Date.now();
+
+  await redis.set(`authreq:${code}`, JSON.stringify(data), { ex: 3600 }); // 1h de validez
+
+  return res.send(`
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Aprobado</title></head>
+<body style="font-family:system-ui;max-width:480px;margin:60px auto;text-align:center;">
+<h1>✅ Acceso aprobado</h1>
+<p>El asistente ya puede usar el código <code>${escapeHtml(code)}</code> durante la próxima hora.</p>
+<p>Scope: <code>${escapeHtml(data.scope)}</code></p>
+</body></html>
+`);
 }
 
 // ── Memoria: leer ────────────────────────────────────────────
