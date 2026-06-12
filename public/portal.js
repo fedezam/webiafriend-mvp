@@ -1,6 +1,5 @@
 // ═══════════════════════════════════════════════
 // ACTION REGISTRY
-// Para agregar una acción nueva: una entrada acá.
 // ═══════════════════════════════════════════════
 
 const ACTIONS = {
@@ -79,7 +78,6 @@ const ACTIONS = {
 
 // ═══════════════════════════════════════════════
 // CONNECTORS REGISTRY
-// Lista canónica de conectores disponibles
 // ═══════════════════════════════════════════════
 
 const CONNECTORS = [
@@ -102,13 +100,17 @@ let state = (() => {
     const s = localStorage.getItem(STORAGE_KEY);
     if (s) {
       const parsed = JSON.parse(s);
-      // Asegurar campos nuevos en estados viejos
       if (!parsed.connectorModes) parsed.connectorModes = {};
       return parsed;
     }
   } catch(e) {}
   return { entity: "demo", actions: [], memory: {}, logs: [], connectorModes: {} };
 })();
+
+// Siempre arrancar en manual — auto solo si el usuario lo activó explícitamente
+function getMode(connectorId) {
+  return state.connectorModes?.[connectorId] === "auto" ? "auto" : "manual";
+}
 
 function saveState() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
@@ -157,7 +159,7 @@ function receiveAction() {
     payment_pending: { color: "panel-amber", icon: "⏳", title: "Pago pendiente",
       body: () => `<p class="panel-row">El pago está siendo procesado.</p>` },
     blogger_ok:      { color: "panel-green", icon: "✅", title: "Publicado en Blogger",
-      body: p => `<p class="panel-row"><b>${esc(p.get("title"))}</b></p>` + link(p.get("post_url"), "Ver post →") },
+      body: p => `<p class="panel-row"><b>${esc(p.get("title") || "Post")}</b></p>` + link(p.get("post_url"), "Ver post →") },
     sheets_ok:       { color: "panel-green", icon: "✅", title: "Guardado en Sheets",
       body: p => `<p class="panel-row"><b>Key:</b> ${esc(p.get("key"))}</p>` },
   };
@@ -165,8 +167,7 @@ function receiveAction() {
   if (status && STATUS_MAP[status]) {
     const s = STATUS_MAP[status];
     log(`STATUS: ${status}`);
-    // Limpiar URL para evitar re-ejecución accidental al recargar
-    history.replaceState({}, '', '/portal.html');
+    history.replaceState({}, '', '/portal.html'); // limpiar URL
     el.innerHTML = panel(s.color, `${s.icon} ${s.title}`, s.body(params));
     saveState();
     return;
@@ -181,24 +182,19 @@ function receiveAction() {
   }
 
   log(`ACTION_RECEIVED: ${action}`);
-
-  // Limpiar URL inmediatamente para evitar re-ejecución
-  history.replaceState({}, '', '/portal.html');
+  history.replaceState({}, '', '/portal.html'); // limpiar URL inmediatamente
 
   const def = ACTIONS[action];
+  const isAuto = getMode(action) === "auto"; // manual por defecto
+  const secs   = isAuto ? 3 : 10;
 
   if (!def) {
-    el.innerHTML = panel("panel-neutral", `⚙️ Acción: ${esc(action)}`,
+    el.innerHTML = panel("panel-neutral", `⚙️ ${esc(action)}`,
       `<pre>${JSON.stringify(payload, null, 2)}</pre>`);
-    renderCountdown(el, action, payload, null, false);
+    renderCountdown(el, action, payload, null, isAuto, secs);
     return;
   }
 
-  // ── Detectar modo auto/manual del conector ───
-  const isAuto = state.connectorModes?.[action] === "auto";
-  const secs   = isAuto ? 3 : 10;
-
-  // ── Renderizar campos ────────────────────────
   const fieldRows = (def.fields || [])
     .filter(f => payload[f.key])
     .map(f => `<p class="panel-row"><b>${f.label}:</b> ${f.prefix || ""}${esc(payload[f.key])}</p>`)
@@ -209,21 +205,21 @@ function receiveAction() {
          placeholder="Contenido...">${esc(payload.content || payload.value || "")}</textarea>`
     : "";
 
-  const autoBadge = isAuto
-    ? `<span class="auto-badge">AUTO ${secs}s</span>`
-    : `<span class="auto-badge" style="opacity:0.4">MAN ${secs}s</span>`;
+  const modeBadge = `<span class="mode-badge ${isAuto ? 'auto' : ''}">${isAuto ? `AUTO ${secs}s` : `MAN ${secs}s`}</span>`;
 
   el.innerHTML = panel(def.color,
-    `<span>${def.title}</span>${autoBadge}`,
+    `<span>${def.title}</span>${modeBadge}`,
     `${fieldRows}${extraHtml}`
   );
 
-  // Inyectar el countdown después de renderizar
   renderCountdown(el, action, payload, def, isAuto, secs);
 }
 
-// ── Countdown ────────────────────────────────────────────────
-function renderCountdown(el, action, payload, def, isAuto, secs = 10) {
+// ═══════════════════════════════════════════════
+// COUNTDOWN
+// ═══════════════════════════════════════════════
+
+function renderCountdown(el, action, payload, def, isAuto, secs) {
   const wrap = document.createElement("div");
   wrap.className = "countdown-wrap";
   wrap.innerHTML = `
@@ -233,7 +229,6 @@ function renderCountdown(el, action, payload, def, isAuto, secs = 10) {
     <button class="btn-primary ${def?.btnColor || ""}" id="executeBtn">${def?.btnLabel || "Ejecutar"}</button>
   `;
 
-  // Agregar al panel existente
   el.querySelector(".panel").appendChild(wrap);
 
   let remaining = secs;
@@ -249,11 +244,12 @@ function renderCountdown(el, action, payload, def, isAuto, secs = 10) {
 
     if (remaining <= 0 && !cancelled) {
       clearInterval(interval);
-      if (isAuto) doExecute();
-      else {
-        // Manual: countdown llegó a 0 pero no ejecuta, solo avisa
+      if (isAuto) {
+        doExecute();
+      } else {
+        // Manual: countdown llega a 0 pero NO ejecuta
+        if (barEl) barEl.style.background = "var(--text-muted)";
         if (lblEl) lblEl.textContent = "—";
-        if (barEl) barEl.style.background = "var(--border)";
       }
     }
   }, 100);
@@ -261,17 +257,14 @@ function renderCountdown(el, action, payload, def, isAuto, secs = 10) {
   document.getElementById("cancelBtn").onclick = () => {
     cancelled = true;
     clearInterval(interval);
-    const barEl = document.getElementById("cbar");
-    const lblEl = document.getElementById("clabel");
-    if (barEl) barEl.style.width = "0%";
-    if (lblEl) lblEl.textContent = "✕";
-    log(`ACTION_CANCELLED: ${action}`);
-    saveState();
-    // Ocultar botones y mostrar mensaje
+    document.getElementById("cbar").style.width = "0%";
+    document.getElementById("clabel").textContent = "✕";
     document.getElementById("cancelBtn").style.display = "none";
     document.getElementById("executeBtn").style.display = "none";
     el.querySelector(".panel").insertAdjacentHTML("beforeend",
       `<p class="panel-row" style="margin-top:6px; color:var(--accent-red)">Cancelado.</p>`);
+    log(`ACTION_CANCELLED: ${action}`);
+    saveState();
   };
 
   document.getElementById("executeBtn").onclick = () => {
@@ -290,7 +283,6 @@ function renderCountdown(el, action, payload, def, isAuto, secs = 10) {
     }
 
     if (def.hasTextarea) {
-      // memory_write o blogger_post: leer textarea
       const ta = document.getElementById("memoryContent");
       const textVal = ta ? ta.value : "";
       const key = action === "memory_write" ? "value" : "content";
@@ -310,11 +302,14 @@ function render() {
   const entityEl = document.getElementById("entityBadge");
   if (entityEl) entityEl.textContent = state.entity;
 
+  const countEl = document.getElementById("actionCount");
+  if (countEl) countEl.textContent = state.actions.length;
+
   const stateEl = document.getElementById("stateView");
   if (stateEl) stateEl.textContent = JSON.stringify({
+    entity:   state.entity,
     acciones: state.actions.length,
-    logs: state.logs.length,
-    entity: state.entity,
+    logs:     state.logs.length,
   }, null, 2);
 
   const memEl = document.getElementById("memoryView");
@@ -345,17 +340,16 @@ function renderConnectors() {
   if (!body) return;
 
   body.innerHTML = CONNECTORS.map(c => {
-    const isAuto = state.connectorModes?.[c.id] === "auto";
+    const isAuto = getMode(c.id) === "auto";
     const dotClass = c.implemented ? "on" : "off";
-    const toggleClass = isAuto ? "auto" : "";
-    const toggleLabel = isAuto ? "AUTO" : "MAN";
-    const disabledAttr = c.implemented ? "" : "disabled style='opacity:0.3; cursor:default'";
+    const disabledAttr = c.implemented ? "" : "disabled style='opacity:0.3;cursor:default'";
 
     return `<div class="conn-item">
       <div class="conn-dot ${dotClass}"></div>
       <span class="conn-name">${c.label}</span>
-      <span class="conn-toggle ${toggleClass}" onclick="toggleConn('${c.id}')" ${disabledAttr}>
-        ${toggleLabel}
+      <span class="conn-toggle ${isAuto ? 'auto' : ''}"
+            onclick="toggleConn('${c.id}')" ${disabledAttr}>
+        ${isAuto ? "AUTO" : "MAN"}
       </span>
     </div>`;
   }).join("");
@@ -365,6 +359,7 @@ function toggleConn(id) {
   const connector = CONNECTORS.find(c => c.id === id);
   if (!connector?.implemented) return;
   if (!state.connectorModes) state.connectorModes = {};
+  // Manual es el default — toggle a auto y viceversa
   state.connectorModes[id] = state.connectorModes[id] === "auto" ? "manual" : "auto";
   saveState();
 }
@@ -417,10 +412,6 @@ function executeGeneric(action, payload) {
     panel("panel-green", "✅ Ejecutado", `<pre>${JSON.stringify(record, null, 2)}</pre>`);
 }
 
-// ═══════════════════════════════════════════════
-// UTILS
-// ═══════════════════════════════════════════════
-
 function exportMemory() {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
   const url  = URL.createObjectURL(blob);
@@ -436,6 +427,5 @@ function clearMemory() {
 }
 
 // ── Init ──────────────────────────────────────
-
 render();
 receiveAction();
