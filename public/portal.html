@@ -21,16 +21,21 @@
       </div>
     </div>
 
-    <!-- Connectors bar -->
-    <div class="connectors-bar">
-      <span class="conn-label">Connectors:</span>
-      <div id="connectorsBody" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+    <!-- Middle row: acción (izq) + conectores (der) -->
+    <div class="middle-row">
+
+      <div id="incomingAction">
+        <div class="panel-idle">Esperando acción...</div>
+      </div>
+
+      <div class="connectors-panel">
+        <div class="connectors-label">Conectores</div>
+        <div id="connectorsBody"></div>
+      </div>
+
     </div>
 
-    <!-- Acción entrante (panel dinámico) -->
-    <div id="incomingAction"></div>
-
-    <!-- Dashboard -->
+    <!-- Dashboard inferior -->
     <div class="dashboard-grid">
 
       <div class="card">
