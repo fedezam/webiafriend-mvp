@@ -10,8 +10,7 @@ export const config = {
 // Generá ids random (ej: crypto.randomUUID().slice(0,12)) y agregalos acá.
 // Esto NO expone nombres de repos en URLs públicas.
 const RENDER_REPO_MAP = {
-  // "abcd13234": { repo: "portalk-blogger-bridge", branch: "main" },
-  // "xyz98765":  { repo: "INDICEIA-PUBLIC",        branch: "main" },
+  "a3f9c1e02b4d": { repo: "INDICEIA-PUBLIC", branch: "main" },
 };
 
 // Token separado de solo lectura para esta capa de render.
