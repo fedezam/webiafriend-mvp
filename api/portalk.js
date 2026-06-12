@@ -6,6 +6,29 @@ export const config = {
   api: { bodyParser: { sizeLimit: '1mb' } }
 };
 
+// ── Render público: mapeo id -> repo/branch ─────────────────
+// Generá ids random (ej: crypto.randomUUID().slice(0,12)) y agregalos acá.
+// Esto NO expone nombres de repos en URLs públicas.
+const RENDER_REPO_MAP = {
+  // "abcd13234": { repo: "portalk-blogger-bridge", branch: "main" },
+  // "xyz98765":  { repo: "INDICEIA-PUBLIC",        branch: "main" },
+};
+
+// Token separado de solo lectura para esta capa de render.
+// Si no está configurado, cae al GITHUB_TOKEN normal (no ideal a largo plazo,
+// pero funciona para arrancar).
+const RENDER_GITHUB_TOKEN = process.env.GITHUB_TOKEN_RENDER_ONLY || process.env.GITHUB_TOKEN;
+
+// ── Helper: escape HTML básico ──────────────────────────────
+function escapeHtml(str = "") {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   const { action } = req.query;
@@ -17,6 +40,10 @@ export default async function handler(req, res) {
     case "github_tree":  return handleGithubTree(req, res);
     case "github_write": return handleGithubWrite(req, res);
     case "github_issue": return handleGithubIssue(req, res);
+
+    // ── Render público (para LLMs / navegación) ──
+    case "render_tree":  return handleRenderTree(req, res);
+    case "render_file":  return handleRenderFile(req, res);
 
     // ── Memoria ──────────────────────────────────
     case "memory_read":  return handleMemoryRead(req, res);
@@ -134,6 +161,194 @@ async function handleGithubIssue(req, res) {
     );
   }
   return res.status(500).json({ error: "Error creando issue", detail: data });
+}
+
+// ── Render: árbol navegable (HTML) ───────────────────────────
+async function handleRenderTree(req, res) {
+  const { id, branch: branchOverride } = req.query;
+
+  if (!id) return res.status(400).send("id requerido");
+
+  const entry = RENDER_REPO_MAP[id];
+  if (!entry) return res.status(404).send("id no encontrado");
+
+  const repo = entry.repo;
+  const branch = branchOverride || entry.branch || "main";
+
+  const ghRes = await fetch(
+    `https://api.github.com/repos/fedezam/${repo}/git/trees/${branch}?recursive=1`,
+    {
+      headers: {
+        Authorization: `Bearer ${RENDER_GITHUB_TOKEN}`,
+        Accept: "application/vnd.github.v3+json"
+      }
+    }
+  );
+
+  const data = await ghRes.json();
+
+  if (data.message) {
+    return res.status(404).send(escapeHtml(data.message));
+  }
+
+  const files =
+    data.tree
+      ?.filter(f => f.type === "blob")
+      .map(f => f.path)
+      ?? [];
+
+  const html = `
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Repo (${escapeHtml(id)})</title>
+<style>
+body{
+  font-family: monospace;
+  max-width:1200px;
+  margin:40px auto;
+  padding:20px;
+}
+li{
+  margin:4px 0;
+}
+a{
+  text-decoration:none;
+}
+.warn{
+  color:#a00;
+  font-weight:bold;
+}
+</style>
+</head>
+<body>
+
+<h1>Repo (${escapeHtml(id)})</h1>
+
+<p>Total files: ${files.length}</p>
+${data.truncated ? `<p class="warn">⚠ El árbol fue truncado por GitHub (repo muy grande). No se muestran todos los archivos.</p>` : ""}
+
+<ul>
+${files.map(path => `
+<li>
+<a href="/api/portalk?action=render_file&id=${encodeURIComponent(id)}&path=${encodeURIComponent(path)}">
+${escapeHtml(path)}
+</a>
+</li>
+`).join("")}
+</ul>
+
+</body>
+</html>
+`;
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  return res.send(html);
+}
+
+// ── Render: contenido de archivo (HTML) ──────────────────────
+async function handleRenderFile(req, res) {
+  const { id, path, branch: branchOverride } = req.query;
+
+  if (!id || !path) return res.status(400).send("id y path requeridos");
+
+  const entry = RENDER_REPO_MAP[id];
+  if (!entry) return res.status(404).send("id no encontrado");
+
+  const repo = entry.repo;
+  const branch = branchOverride || entry.branch || "main";
+
+  const ghRes = await fetch(
+    `https://api.github.com/repos/fedezam/${repo}/contents/${path}?ref=${branch}`,
+    {
+      headers: {
+        Authorization: `Bearer ${RENDER_GITHUB_TOKEN}`,
+        Accept: "application/vnd.github.v3+json"
+      }
+    }
+  );
+
+  const data = await ghRes.json();
+
+  if (data.message) {
+    return res.status(404).send(escapeHtml(data.message));
+  }
+
+  const safePath = escapeHtml(path);
+
+  // Archivos no-base64 (ej: muy grandes, GitHub no devuelve content)
+  // o binarios que no tiene sentido mostrar como texto
+  const looksBinary = data.encoding !== "base64" || !data.content;
+
+  let bodyHtml;
+
+  if (looksBinary) {
+    bodyHtml = `
+<p class="warn">⚠ No se puede renderizar este archivo como texto (binario o demasiado grande).</p>
+${data.html_url ? `<p><a href="${data.html_url}" target="_blank">Ver en GitHub</a></p>` : ""}
+`;
+  } else {
+    let content;
+    try {
+      content = Buffer.from(data.content, "base64").toString("utf8");
+    } catch {
+      content = null;
+    }
+
+    if (content === null) {
+      bodyHtml = `
+<p class="warn">⚠ No se pudo decodificar el contenido.</p>
+${data.html_url ? `<p><a href="${data.html_url}" target="_blank">Ver en GitHub</a></p>` : ""}
+`;
+    } else {
+      bodyHtml = `<pre>${escapeHtml(content)}</pre>`;
+    }
+  }
+
+  const html = `
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${safePath}</title>
+<style>
+body{
+  font-family: monospace;
+  max-width:1400px;
+  margin:40px auto;
+  padding:20px;
+}
+
+pre{
+  white-space:pre-wrap;
+  overflow-x:auto;
+  background:#f5f5f5;
+  padding:20px;
+}
+
+.warn{
+  color:#a00;
+  font-weight:bold;
+}
+</style>
+</head>
+<body>
+
+<h1>${safePath}</h1>
+
+<p>
+<a href="/api/portalk?action=render_tree&id=${encodeURIComponent(id)}">⟵ volver al árbol</a>
+</p>
+
+${bodyHtml}
+
+</body>
+</html>
+`;
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  return res.send(html);
 }
 
 // ── Memoria: leer ────────────────────────────────────────────
@@ -265,14 +480,12 @@ async function handleCalendar(req, res) {
 }
 
 // ── Blogger: crear o actualizar página/post ──────────────────
-// Acepta GET o POST
-// Params: title, content (HTML), labels (opcional), page_id (para update)
 async function handleBloggerPost(req, res) {
   const body = req.method === "POST" ? (req.body || {}) : req.query;
   const title    = body.title    ?? req.query.title;
   const content  = body.content  ?? req.query.content;
-  const labels   = body.labels   ?? req.query.labels;   // "portalk,memoria"
-  const page_id  = body.page_id  ?? req.query.page_id;  // para update
+  const labels   = body.labels   ?? req.query.labels;
+  const page_id  = body.page_id  ?? req.query.page_id;
 
   if (!title || !content) {
     return res.status(400).json({ error: "title y content requeridos" });
@@ -280,7 +493,6 @@ async function handleBloggerPost(req, res) {
 
   const BLOG_ID = process.env.BLOGGER_BLOG_ID || "1841430618213161331";
 
-  // Refresh token
   const refreshToken = await redis.get("google_refresh_token");
   if (!refreshToken) return res.status(401).json({ error: "Sin refresh token" });
 
@@ -311,13 +523,11 @@ async function handleBloggerPost(req, res) {
   let blogRes, blogData;
 
   if (page_id) {
-    // Update post existente
     blogRes = await fetch(
       `https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts/${page_id}`,
       { method: "PUT", headers, body: JSON.stringify(payload) }
     );
   } else {
-    // Crear post nuevo
     blogRes = await fetch(
       `https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts/`,
       { method: "POST", headers, body: JSON.stringify(payload) }
@@ -332,7 +542,6 @@ async function handleBloggerPost(req, res) {
     );
   }
 
-  // Si falla por scope → instrucciones claras
   if (blogData.error?.code === 403) {
     return res.status(403).json({
       error: "Sin permiso para Blogger — necesitás re-autorizar con scope blogger",
@@ -370,4 +579,3 @@ async function handlePayment(req, res) {
   if (mpData.init_point) return res.redirect(mpData.init_point);
   return res.status(500).json({ error: "Error creando preferencia", detail: mpData });
 }
-
