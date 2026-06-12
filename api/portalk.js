@@ -85,6 +85,10 @@ export default async function handler(req, res) {
     // ── Utilidades ───────────────────────────────
     case "ping":         return res.json({ ok: true, ts: Date.now() });
 
+    // ── Shortener de links propios ───────────────
+    case "shorten":      return handleShorten(req, res);
+    case "go":           return handleGo(req, res);
+
     default:
       return res.status(400).json({ error: `Acción desconocida: ${action}` });
   }
@@ -735,4 +739,29 @@ async function handlePayment(req, res) {
   const mpData = await mpRes.json();
   if (mpData.init_point) return res.redirect(mpData.init_point);
   return res.status(500).json({ error: "Error creando preferencia", detail: mpData });
+}
+
+// ── shorten: guarda una URL larga, devuelve una corta ─────────
+async function handleShorten(req, res) {
+  const { url } = req.method === "POST" ? (req.body || {}) : req.query;
+  if (!url) return res.status(400).json({ error: "url requerida" });
+
+  const code = generateAuthCode();
+
+  await redis.set(`shortlink:${code}`, url, { ex: 3600 }); // 1h
+
+  return res.json({
+    short_url: `${BASE_URL}/api/portalk?action=go&code=${code}`
+  });
+}
+
+// ── go: redirige a la URL larga guardada ───────────────────────
+async function handleGo(req, res) {
+  const { code } = req.query;
+  if (!code) return res.status(400).send("code requerido");
+
+  const url = await redis.get(`shortlink:${code}`);
+  if (!url) return res.status(404).send("Link expirado o inválido.");
+
+  return res.redirect(url);
 }
