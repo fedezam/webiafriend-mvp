@@ -75,21 +75,6 @@ const ACTIONS = {
     execute: null
   },
 
-  github_write: {
-    title: "📝 Escribir archivo en GitHub",
-    color: "panel-neutral",
-    btnColor: "",
-    btnLabel: "Escribir archivo",
-    fields: [
-      { key: "repo",    label: "Repo"                },
-      { key: "path",    label: "Path"                },
-      { key: "message", label: "Mensaje"             },
-      { key: "sha",     label: "SHA (si es edición)" },
-    ],
-    hasTextarea: true,
-    execute: null
-  },
-
 };
 
 // ═══════════════════════════════════════════════
@@ -167,6 +152,46 @@ function receiveAction() {
     return;
   }
 
+  // ── GitHub write pending: pedir preview y mostrar confirmación ──
+  if (status === "github_write_pending") {
+    const code = params.get("code");
+    log(`STATUS: github_write_pending`);
+    history.replaceState({}, '', '/portal.html');
+    el.innerHTML = panel("panel-neutral", "⏳ Cargando propuesta de escritura...", "");
+
+    fetch(`/api/portalk?action=github_write_preview&code=${encodeURIComponent(code)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) {
+          el.innerHTML = panel("panel-red", "❌ Error", `<p class="panel-row">${esc(data.error)}</p>`);
+          return;
+        }
+        el.innerHTML = panel("panel-neutral", "📝 Confirmar escritura en GitHub",
+          `<p class="panel-row"><b>Repo:</b> ${esc(data.repo)}</p>
+           <p class="panel-row"><b>Path:</b> ${esc(data.path)}</p>
+           <p class="panel-row"><b>Branch:</b> ${esc(data.branch)}</p>
+           <p class="panel-row"><b>Mensaje:</b> ${esc(data.message)}</p>
+           ${data.sha ? `<p class="panel-row"><b>SHA actual:</b> ${esc(data.sha)}</p>` : ""}
+           <pre class="memory-textarea" style="max-height:300px;overflow:auto;">${esc(data.content)}</pre>
+           <div class="countdown-wrap">
+             <button class="btn-cancel" id="ghCancelBtn">Cancelar</button>
+             <button class="btn-primary" id="ghConfirmBtn">Confirmar escritura</button>
+           </div>`);
+
+        document.getElementById("ghConfirmBtn").onclick = () => {
+          window.location.href = `/api/portalk?action=github_write_confirm&code=${encodeURIComponent(code)}`;
+        };
+        document.getElementById("ghCancelBtn").onclick = () => {
+          window.location.href = `/api/portalk?action=github_write_cancel&code=${encodeURIComponent(code)}`;
+        };
+      })
+      .catch(() => {
+        el.innerHTML = panel("panel-red", "❌ Error", `<p class="panel-row">No se pudo cargar la propuesta.</p>`);
+      });
+
+    return;
+  }
+
   // ── Status returns ───────────────────────────
   const STATUS_MAP = {
     ok:              { color: "panel-green", icon: "✅", title: "Turno agendado",
@@ -185,6 +210,12 @@ function receiveAction() {
       body: p => `<p class="panel-row"><b>${esc(p.get("title") || "Post")}</b></p>` + link(p.get("post_url"), "Ver post →") },
     sheets_ok:       { color: "panel-green", icon: "✅", title: "Guardado en Sheets",
       body: p => `<p class="panel-row"><b>Key:</b> ${esc(p.get("key"))}</p>` },
+    github_write_ok: { color: "panel-green", icon: "✅", title: "Archivo escrito en GitHub",
+      body: p => `<p class="panel-row"><b>${esc(p.get("repo"))}/${esc(p.get("path"))}</b></p><p class="panel-row"><b>SHA:</b> ${esc(p.get("sha"))}</p>` + link(p.get("url"), "Ver en GitHub →") },
+    github_write_fail: { color: "panel-red", icon: "❌", title: "Error al escribir archivo",
+      body: p => `<p class="panel-row">No se pudo escribir <b>${esc(p.get("path"))}</b>.</p>` },
+    github_write_cancelled: { color: "panel-neutral", icon: "🚫", title: "Escritura cancelada",
+      body: () => `<p class="panel-row">La propuesta de escritura fue cancelada.</p>` },
   };
 
   if (status && STATUS_MAP[status]) {
