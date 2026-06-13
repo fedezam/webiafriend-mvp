@@ -51,10 +51,13 @@ export default async function handler(req, res) {
   switch (action) {
 
     // ── GitHub ───────────────────────────────────
-    case "github_file":  return handleGithubFile(req, res);
-    case "github_tree":  return handleGithubTree(req, res);
-    case "github_write": return handleGithubWrite(req, res);
-    case "github_issue": return handleGithubIssue(req, res);
+    case "github_file":        return handleGithubFile(req, res);
+    case "github_tree":        return handleGithubTree(req, res);
+    case "github_write":       return handleGithubWrite(req, res);
+    case "github_write_preview": return handleGithubWritePreview(req, res);
+    case "github_write_confirm": return handleGithubWriteConfirm(req, res);
+    case "github_write_cancel":  return handleGithubWriteCancel(req, res);
+    case "github_issue":       return handleGithubIssue(req, res);
 
     // ── Render público (para LLMs / navegación) ──
     case "render_tree":  return handleRenderTree(req, res);
@@ -129,21 +132,68 @@ async function handleGithubTree(req, res) {
   return res.json({ repo, branch, paths });
 }
 
-// ── GitHub: escribir/editar archivo ─────────────────────────
+// ── GitHub: proponer escritura (NO ejecuta, queda pendiente) ──
 async function handleGithubWrite(req, res) {
   const { repo, path, message = "update via portalk", branch = "main" } = req.query;
   const body = req.method === "POST" ? req.body : req.query;
   const { content, sha } = body;
 
-  if (!repo || !path || !content) return res.status(400).json({ error: "repo, path y content requeridos" });
+  if (!repo || !path || content === undefined) {
+    return res.status(400).json({ error: "repo, path y content requeridos" });
+  }
 
-  const encoded = Buffer.from(content).toString("base64");
+  const code = generateAuthCode();
 
-  const payload = { message, content: encoded, branch };
-  if (sha) payload.sha = sha;
+  await redis.set(
+    `ghwrite:${code}`,
+    JSON.stringify({ repo, path, content, sha, message, branch, status: "pending", created: Date.now() }),
+    { ex: 600 } // 10 min para confirmar
+  );
+
+  return res.redirect(
+    `/portal.html?status=github_write_pending&code=${encodeURIComponent(code)}`
+  );
+}
+
+// ── GitHub write: preview de lo que se va a escribir ──────────
+async function handleGithubWritePreview(req, res) {
+  const { code } = req.query;
+  if (!code) return res.status(400).json({ error: "code requerido" });
+
+  const raw = await redis.get(`ghwrite:${code}`);
+  if (!raw) return res.status(404).json({ error: "Código inválido o expirado" });
+
+  const data = typeof raw === "string" ? JSON.parse(raw) : raw;
+
+  return res.json({
+    code,
+    repo: data.repo,
+    path: data.path,
+    branch: data.branch,
+    message: data.message,
+    content: data.content,
+    sha: data.sha || null,
+    status: data.status
+  });
+}
+
+// ── GitHub write: confirmar y ejecutar el PUT real ────────────
+async function handleGithubWriteConfirm(req, res) {
+  const { code } = req.query;
+  if (!code) return res.status(400).send("code requerido");
+
+  const raw = await redis.get(`ghwrite:${code}`);
+  if (!raw) return res.status(404).send("Código inválido o expirado.");
+
+  const data = typeof raw === "string" ? JSON.parse(raw) : raw;
+  if (data.status !== "pending") return res.status(409).send("Esta escritura ya fue procesada.");
+
+  const encoded = Buffer.from(data.content).toString("base64");
+  const payload = { message: data.message, content: encoded, branch: data.branch };
+  if (data.sha) payload.sha = data.sha;
 
   const ghRes = await fetch(
-    `https://api.github.com/repos/fedezam/${repo}/contents/${path}`,
+    `https://api.github.com/repos/fedezam/${data.repo}/contents/${data.path}`,
     {
       method: "PUT",
       headers: {
@@ -154,11 +204,25 @@ async function handleGithubWrite(req, res) {
       body: JSON.stringify(payload)
     }
   );
-  const data = await ghRes.json();
-  if (data.content?.sha) {
-    return res.json({ ok: true, path, sha: data.content.sha, url: data.content.html_url });
+  const ghData = await ghRes.json();
+
+  await redis.del(`ghwrite:${code}`);
+
+  if (ghData.content?.sha) {
+    return res.redirect(
+      `/portal.html?status=github_write_ok&repo=${encodeURIComponent(data.repo)}&path=${encodeURIComponent(data.path)}&sha=${ghData.content.sha}&url=${encodeURIComponent(ghData.content.html_url)}`
+    );
   }
-  return res.status(500).json({ error: "Error escribiendo archivo", detail: data });
+  return res.redirect(`/portal.html?status=github_write_fail&path=${encodeURIComponent(data.path)}`);
+}
+
+// ── GitHub write: cancelar propuesta pendiente ────────────────
+async function handleGithubWriteCancel(req, res) {
+  const { code } = req.query;
+  if (!code) return res.status(400).send("code requerido");
+
+  await redis.del(`ghwrite:${code}`);
+  return res.redirect(`/portal.html?status=github_write_cancelled`);
 }
 
 // ── GitHub: crear issue ──────────────────────────────────────
