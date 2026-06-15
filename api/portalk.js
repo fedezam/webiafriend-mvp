@@ -213,7 +213,7 @@ async function handleGithubWriteLargeRequest(req, res) {
     return res.status(403).json({
       status: "pending_authorization",
       message: "Acceso no autorizado para escribir en GitHub. Solicitá autorización primero.",
-      request_url: `${BASE_URL}/api/auth?action=request_access&scope=github_write`
+      request_url: `${BASE_URL}/api/auth/access?action=request_access&scope=github_write`
     });
   }
 
@@ -326,7 +326,7 @@ async function handleRenderTree(req, res) {
     return res.status(403).json({
       status: "pending_authorization",
       message: "Acceso no autorizado. Solicitá autorización primero.",
-      request_url: `${BASE_URL}/api/portalk?action=request_access&scope=${encodeURIComponent(id)}`
+      request_url: `${BASE_URL}/api/auth/access?action=request_access&scope=${encodeURIComponent(id)}`
     });
   }
 
@@ -382,7 +382,7 @@ async function handleRenderFile(req, res) {
     return res.status(403).json({
       status: "pending_authorization",
       message: "Acceso no autorizado. Solicitá autorización primero.",
-      request_url: `${BASE_URL}/api/portalk?action=request_access&scope=${encodeURIComponent(id)}`
+      request_url: `${BASE_URL}/api/auth/access?action=request_access&scope=${encodeURIComponent(id)}`
     });
   }
 
