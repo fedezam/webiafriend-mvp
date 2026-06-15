@@ -7,19 +7,14 @@ export const config = {
 };
 
 // ── Render público: mapeo id -> repo/branch ─────────────────
-// Generá ids random (ej: crypto.randomUUID().slice(0,12)) y agregalos acá.
-// Esto NO expone nombres de repos en URLs públicas.
 const RENDER_REPO_MAP = {
   "a3f9c1e02b4d": { repo: "INDICEIA-PUBLIC", branch: "main" },
 };
 
-// Token separado de solo lectura para esta capa de render.
-// Si no está configurado, cae al GITHUB_TOKEN normal.
 const RENDER_GITHUB_TOKEN = process.env.GITHUB_TOKEN_RENDER_ONLY || process.env.GITHUB_TOKEN;
-
 const BASE_URL = "https://webiafriend-mvp.vercel.app";
 
-// ── Helper: escape HTML básico ──────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────
 function escapeHtml(str = "") {
   return String(str)
     .replace(/&/g, "&amp;")
@@ -29,17 +24,14 @@ function escapeHtml(str = "") {
     .replace(/'/g, "&#39;");
 }
 
-// ── Helper: generar código de autorización ───────────────────
 function generateAuthCode() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
 
-// ── Helper: chequear si un código está aprobado para un scope ──
 async function checkAuth(code, requiredScope) {
   if (!code) return false;
   const raw = await redis.get(`authreq:${code}`);
   if (!raw) return false;
-
   const data = typeof raw === "string" ? JSON.parse(raw) : raw;
   return data.status === "approved" && data.scope === requiredScope;
 }
@@ -49,46 +41,49 @@ export default async function handler(req, res) {
   const { action } = req.query;
 
   switch (action) {
-
     // ── GitHub ───────────────────────────────────
-    case "github_file":        return handleGithubFile(req, res);
-    case "github_tree":        return handleGithubTree(req, res);
-    case "github_write":       return handleGithubWrite(req, res);
+    case "github_file":          return handleGithubFile(req, res);
+    case "github_tree":          return handleGithubTree(req, res);
+    case "github_write":         return handleGithubWrite(req, res);
     case "github_write_preview": return handleGithubWritePreview(req, res);
     case "github_write_confirm": return handleGithubWriteConfirm(req, res);
     case "github_write_cancel":  return handleGithubWriteCancel(req, res);
+    
+    case "github_write_large_request": return handleGithubWriteLargeRequest(req, res);
+    case "github_write_large_preview":  return handleGithubWriteLargePreview(req, res);
+    case "github_write_large_confirm":  return handleGithubWriteLargeConfirm(req, res);
+    case "github_write_large_cancel":   return handleGithubWriteLargeCancel(req, res);
+    
     case "github_issue":       return handleGithubIssue(req, res);
 
-    // ── Render público (para LLMs / navegación) ──
+    // ── Render público ────────────────────────
     case "render_tree":  return handleRenderTree(req, res);
     case "render_file":  return handleRenderFile(req, res);
 
-    // ── Autorización por código ──────────────────
+    // ── Autorización ──────────────────────────
     case "request_access": return handleRequestAccess(req, res);
     case "approve_access": return handleApproveAccess(req, res);
     case "confirm_access": return handleConfirmAccess(req, res);
 
-    // ── Memoria ──────────────────────────────────
+    // ── Memoria ───────────────────────────────
     case "memory_read":  return handleMemoryRead(req, res);
     case "memory_write": return handleMemoryWrite(req, res);
     case "memory_list":  return handleMemoryList(req, res);
 
-    // ── Sheets ───────────────────────────────────
+    // ── Sheets ────────────────────────────────
     case "sheets_read":  return handleSheetsRead(req, res);
 
-    // ── Calendar ─────────────────────────────────
+    // ── Calendar ──────────────────────────────
     case "calendar":     return handleCalendar(req, res);
 
-    // ── Blogger ──────────────────────────────────
+    // ── Blogger ───────────────────────────────
     case "blogger_post": return handleBloggerPost(req, res);
 
-    // ── Mercado Pago ─────────────────────────────
+    // ── Mercado Pago ──────────────────────────
     case "payment":      return handlePayment(req, res);
 
-    // ── Utilidades ───────────────────────────────
+    // ── Utilidades ────────────────────────────
     case "ping":         return res.json({ ok: true, ts: Date.now() });
-
-    // ── Shortener de links propios ───────────────
     case "shorten":      return handleShorten(req, res);
     case "go":           return handleGo(req, res);
 
@@ -125,14 +120,11 @@ async function handleGithubTree(req, res) {
   const data = await ghRes.json();
   if (data.message) return res.status(404).json({ error: data.message });
 
-  const paths = data.tree
-    ?.filter(f => f.type === "blob")
-    .map(f => f.path) ?? [];
-
+  const paths = data.tree?.filter(f => f.type === "blob").map(f => f.path) ?? [];
   return res.json({ repo, branch, paths });
 }
 
-// ── GitHub: proponer escritura (NO ejecuta, queda pendiente) ──
+// ── GitHub: proponer escritura (flujo chico) ─────────────────
 async function handleGithubWrite(req, res) {
   const { repo, path, message = "update via portalk", branch = "main" } = req.query;
   const body = req.method === "POST" ? req.body : req.query;
@@ -143,19 +135,15 @@ async function handleGithubWrite(req, res) {
   }
 
   const code = generateAuthCode();
-
   await redis.set(
     `ghwrite:${code}`,
     JSON.stringify({ repo, path, content, sha, message, branch, status: "pending", created: Date.now() }),
-    { ex: 600 } // 10 min para confirmar
+    { ex: 600 }
   );
 
-  return res.redirect(
-    `/portal.html?status=github_write_pending&code=${encodeURIComponent(code)}`
-  );
+  return res.redirect(`/portal.html?status=github_write_pending&code=${encodeURIComponent(code)}`);
 }
 
-// ── GitHub write: preview de lo que se va a escribir ──────────
 async function handleGithubWritePreview(req, res) {
   const { code } = req.query;
   if (!code) return res.status(400).json({ error: "code requerido" });
@@ -164,20 +152,12 @@ async function handleGithubWritePreview(req, res) {
   if (!raw) return res.status(404).json({ error: "Código inválido o expirado" });
 
   const data = typeof raw === "string" ? JSON.parse(raw) : raw;
-
   return res.json({
-    code,
-    repo: data.repo,
-    path: data.path,
-    branch: data.branch,
-    message: data.message,
-    content: data.content,
-    sha: data.sha || null,
-    status: data.status
+    code, repo: data.repo, path: data.path, branch: data.branch,
+    message: data.message, content: data.content, sha: data.sha || null, status: data.status
   });
 }
 
-// ── GitHub write: confirmar y ejecutar el PUT real ────────────
 async function handleGithubWriteConfirm(req, res) {
   const { code } = req.query;
   if (!code) return res.status(400).send("code requerido");
@@ -205,7 +185,6 @@ async function handleGithubWriteConfirm(req, res) {
     }
   );
   const ghData = await ghRes.json();
-
   await redis.del(`ghwrite:${code}`);
 
   if (ghData.content?.sha) {
@@ -216,12 +195,95 @@ async function handleGithubWriteConfirm(req, res) {
   return res.redirect(`/portal.html?status=github_write_fail&path=${encodeURIComponent(data.path)}`);
 }
 
-// ── GitHub write: cancelar propuesta pendiente ────────────────
 async function handleGithubWriteCancel(req, res) {
   const { code } = req.query;
   if (!code) return res.status(400).send("code requerido");
-
   await redis.del(`ghwrite:${code}`);
+  return res.redirect(`/portal.html?status=github_write_cancelled`);
+}
+
+// ── GitHub write GRANDE: paso 1, registrar metadata ──────────
+async function handleGithubWriteLargeRequest(req, res) {
+  const { repo, path, message = "update via portalk (large)", branch = "main", sha, auth } = req.query;
+
+  if (!repo || !path) return res.status(400).json({ error: "repo y path requeridos" });
+
+  const authorized = await checkAuth(auth, "github_write");
+  if (!authorized) {
+    return res.status(403).json({
+      status: "pending_authorization",
+      message: "Acceso no autorizado para escribir en GitHub. Solicitá autorización primero.",
+      request_url: `${BASE_URL}/api/auth?action=request_access&scope=github_write`
+    });
+  }
+
+  const code = generateAuthCode();
+  await redis.set(
+    `ghwrite_large:${code}`,
+    JSON.stringify({ repo, path, message, branch, sha: sha || null, status: "awaiting_content", created: Date.now() }),
+    { ex: 1800 }
+  );
+
+  return res.redirect(`/portal.html?status=github_write_large_pending&code=${encodeURIComponent(code)}`);
+}
+
+// ── GitHub write GRANDE: preview metadata ────────────────────
+async function handleGithubWriteLargePreview(req, res) {
+  const { code } = req.query;
+  if (!code) return res.status(400).json({ error: "code requerido" });
+
+  const raw = await redis.get(`ghwrite_large:${code}`);
+  if (!raw) return res.status(404).json({ error: "Código inválido o expirado" });
+
+  const data = typeof raw === "string" ? JSON.parse(raw) : raw;
+  return res.json({
+    code, repo: data.repo, path: data.path, branch: data.branch,
+    message: data.message, sha: data.sha, status: data.status
+  });
+}
+
+// ── GitHub write GRANDE: paso 2, recibir contenido y escribir ─
+async function handleGithubWriteLargeConfirm(req, res) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Usar POST" });
+
+  const { code, content } = req.body || {};
+  if (!code || content === undefined) return res.status(400).json({ error: "code y content requeridos" });
+
+  const raw = await redis.get(`ghwrite_large:${code}`);
+  if (!raw) return res.status(404).json({ error: "Código inválido o expirado" });
+
+  const data = typeof raw === "string" ? JSON.parse(raw) : raw;
+  if (data.status !== "awaiting_content") return res.status(409).json({ error: "Esta escritura ya fue procesada" });
+
+  const encoded = Buffer.from(content).toString("base64");
+  const payload = { message: data.message, content: encoded, branch: data.branch };
+  if (data.sha) payload.sha = data.sha;
+
+  const ghRes = await fetch(
+    `https://api.github.com/repos/fedezam/${data.repo}/contents/${data.path}`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+        Accept: "application/vnd.github.v3+json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    }
+  );
+  const ghData = await ghRes.json();
+  await redis.del(`ghwrite_large:${code}`);
+
+  if (ghData.content?.sha) {
+    return res.json({ ok: true, repo: data.repo, path: data.path, sha: ghData.content.sha, url: ghData.content.html_url });
+  }
+  return res.status(500).json({ error: "Error escribiendo archivo", detail: ghData });
+}
+
+async function handleGithubWriteLargeCancel(req, res) {
+  const { code } = req.query;
+  if (!code) return res.status(400).send("code requerido");
+  await redis.del(`ghwrite_large:${code}`);
   return res.redirect(`/portal.html?status=github_write_cancelled`);
 }
 
@@ -254,7 +316,6 @@ async function handleGithubIssue(req, res) {
 // ── Render: árbol navegable (HTML) ───────────────────────────
 async function handleRenderTree(req, res) {
   const { id, auth, branch: branchOverride } = req.query;
-
   if (!id) return res.status(400).send("id requerido");
 
   const entry = RENDER_REPO_MAP[id];
@@ -274,25 +335,12 @@ async function handleRenderTree(req, res) {
 
   const ghRes = await fetch(
     `https://api.github.com/repos/fedezam/${repo}/git/trees/${branch}?recursive=1`,
-    {
-      headers: {
-        Authorization: `Bearer ${RENDER_GITHUB_TOKEN}`,
-        Accept: "application/vnd.github.v3+json"
-      }
-    }
+    { headers: { Authorization: `Bearer ${RENDER_GITHUB_TOKEN}`, Accept: "application/vnd.github.v3+json" } }
   );
-
   const data = await ghRes.json();
+  if (data.message) return res.status(404).send(escapeHtml(data.message));
 
-  if (data.message) {
-    return res.status(404).send(escapeHtml(data.message));
-  }
-
-  const files =
-    data.tree
-      ?.filter(f => f.type === "blob")
-      .map(f => f.path)
-      ?? [];
+  const files = data.tree?.filter(f => f.type === "blob").map(f => f.path) ?? [];
 
   const html = `
 <!doctype html>
@@ -301,44 +349,21 @@ async function handleRenderTree(req, res) {
 <meta charset="utf-8">
 <title>Repo (${escapeHtml(id)})</title>
 <style>
-body{
-  font-family: monospace;
-  max-width:1200px;
-  margin:40px auto;
-  padding:20px;
-}
-li{
-  margin:4px 0;
-}
-a{
-  text-decoration:none;
-}
-.warn{
-  color:#a00;
-  font-weight:bold;
-}
+body{ font-family: monospace; max-width:1200px; margin:40px auto; padding:20px; }
+li{ margin:4px 0; } a{ text-decoration:none; } .warn{ color:#a00; font-weight:bold; }
 </style>
 </head>
 <body>
-
 <h1>Repo (${escapeHtml(id)})</h1>
-
 <p>Total files: ${files.length}</p>
-${data.truncated ? `<p class="warn">⚠ El árbol fue truncado por GitHub (repo muy grande). No se muestran todos los archivos.</p>` : ""}
-
+${data.truncated ? `<p class="warn">⚠ El árbol fue truncado por GitHub.</p>` : ""}
 <ul>
 ${files.map(path => `
-<li>
-<a href="/api/portalk?action=render_file&id=${encodeURIComponent(id)}&auth=${encodeURIComponent(auth)}&path=${encodeURIComponent(path)}">
-${escapeHtml(path)}
-</a>
-</li>
+<li><a href="/api/portalk?action=render_file&id=${encodeURIComponent(id)}&auth=${encodeURIComponent(auth)}&path=${encodeURIComponent(path)}">${escapeHtml(path)}</a></li>
 `).join("")}
 </ul>
-
 </body>
-</html>
-`;
+</html>`;
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   return res.send(html);
@@ -347,7 +372,6 @@ ${escapeHtml(path)}
 // ── Render: contenido de archivo (HTML) ──────────────────────
 async function handleRenderFile(req, res) {
   const { id, path, auth, branch: branchOverride } = req.query;
-
   if (!id || !path) return res.status(400).send("id y path requeridos");
 
   const entry = RENDER_REPO_MAP[id];
@@ -367,44 +391,22 @@ async function handleRenderFile(req, res) {
 
   const ghRes = await fetch(
     `https://api.github.com/repos/fedezam/${repo}/contents/${path}?ref=${branch}`,
-    {
-      headers: {
-        Authorization: `Bearer ${RENDER_GITHUB_TOKEN}`,
-        Accept: "application/vnd.github.v3+json"
-      }
-    }
+    { headers: { Authorization: `Bearer ${RENDER_GITHUB_TOKEN}`, Accept: "application/vnd.github.v3+json" } }
   );
-
   const data = await ghRes.json();
-
-  if (data.message) {
-    return res.status(404).send(escapeHtml(data.message));
-  }
+  if (data.message) return res.status(404).send(escapeHtml(data.message));
 
   const safePath = escapeHtml(path);
-
   const looksBinary = data.encoding !== "base64" || !data.content;
-
   let bodyHtml;
 
   if (looksBinary) {
-    bodyHtml = `
-<p class="warn">⚠ No se puede renderizar este archivo como texto (binario o demasiado grande).</p>
-${data.html_url ? `<p><a href="${data.html_url}" target="_blank">Ver en GitHub</a></p>` : ""}
-`;
+    bodyHtml = `<p class="warn">⚠ No se puede renderizar este archivo como texto.</p>${data.html_url ? `<p><a href="${data.html_url}" target="_blank">Ver en GitHub</a></p>` : ""}`;
   } else {
     let content;
-    try {
-      content = Buffer.from(data.content, "base64").toString("utf8");
-    } catch {
-      content = null;
-    }
-
+    try { content = Buffer.from(data.content, "base64").toString("utf8"); } catch { content = null; }
     if (content === null) {
-      bodyHtml = `
-<p class="warn">⚠ No se pudo decodificar el contenido.</p>
-${data.html_url ? `<p><a href="${data.html_url}" target="_blank">Ver en GitHub</a></p>` : ""}
-`;
+      bodyHtml = `<p class="warn">⚠ No se pudo decodificar el contenido.</p>${data.html_url ? `<p><a href="${data.html_url}" target="_blank">Ver en GitHub</a></p>` : ""}`;
     } else {
       bodyHtml = `<pre>${escapeHtml(content)}</pre>`;
     }
@@ -417,94 +419,50 @@ ${data.html_url ? `<p><a href="${data.html_url}" target="_blank">Ver en GitHub</
 <meta charset="utf-8">
 <title>${safePath}</title>
 <style>
-body{
-  font-family: monospace;
-  max-width:1400px;
-  margin:40px auto;
-  padding:20px;
-}
-
-pre{
-  white-space:pre-wrap;
-  overflow-x:auto;
-  background:#f5f5f5;
-  padding:20px;
-}
-
-.warn{
-  color:#a00;
-  font-weight:bold;
-}
+body{ font-family: monospace; max-width:1400px; margin:40px auto; padding:20px; }
+pre{ white-space:pre-wrap; overflow-x:auto; background:#f5f5f5; padding:20px; }
+.warn{ color:#a00; font-weight:bold; }
 </style>
 </head>
 <body>
-
 <h1>${safePath}</h1>
-
-<p>
-<a href="/api/portalk?action=render_tree&id=${encodeURIComponent(id)}&auth=${encodeURIComponent(auth)}">⟵ volver al árbol</a>
-</p>
-
+<p><a href="/api/portalk?action=render_tree&id=${encodeURIComponent(id)}&auth=${encodeURIComponent(auth)}">⟵ volver al árbol</a></p>
 ${bodyHtml}
-
 </body>
-</html>
-`;
+</html>`;
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   return res.send(html);
 }
 
-// ── request_access: el LLM pide permiso ──────────────────────
+// ── request_access ───────────────────────────────────────────
 async function handleRequestAccess(req, res) {
   const { scope } = req.query;
   if (!scope) return res.status(400).json({ error: "scope requerido" });
 
   const code = generateAuthCode();
+  await redis.set(`authreq:${code}`, JSON.stringify({ scope, status: "pending", created: Date.now() }), { ex: 300 });
 
-  await redis.set(
-    `authreq:${code}`,
-    JSON.stringify({ scope, status: "pending", created: Date.now() }),
-    { ex: 300 } // 5 minutos para que el humano apruebe
-  );
-
-  const approveUrl =
-    `${BASE_URL}/api/portalk?action=approve_access&code=${encodeURIComponent(code)}`;
-
+  const approveUrl = `${BASE_URL}/api/portalk?action=approve_access&code=${encodeURIComponent(code)}`;
   return res.json({
-    status: "pending_authorization",
-    code,
-    scope,
-    approve_url: approveUrl,
+    status: "pending_authorization", code, scope, approve_url: approveUrl,
     message: "Pedile al usuario que abra approve_url y confirme. Luego reintentá la acción original agregando &auth=" + code
   });
 }
 
-// ── approve_access: muestra pantalla de confirmación (NO ejecuta) ──
 async function handleApproveAccess(req, res) {
   const { code } = req.query;
   if (!code) return res.status(400).send("code requerido");
 
   const raw = await redis.get(`authreq:${code}`);
   if (!raw) return res.status(404).send("Código inválido o expirado.");
-
   const data = typeof raw === "string" ? JSON.parse(raw) : raw;
 
   if (data.status === "approved") {
-    return res.send(`
-<!doctype html>
-<html><head><meta charset="utf-8"><title>Ya aprobado</title></head>
-<body style="font-family:system-ui;max-width:480px;margin:60px auto;text-align:center;">
-<h1>✅ Ya aprobado</h1>
-<p>Este acceso (scope: <code>${escapeHtml(data.scope)}</code>) ya fue aprobado anteriormente.</p>
-<p>Código: <code>${escapeHtml(code)}</code></p>
-</body></html>
-`);
+    return res.send(`<!doctype html><html><head><meta charset="utf-8"><title>Ya aprobado</title></head><body style="font-family:system-ui;max-width:480px;margin:60px auto;text-align:center;"><h1>✅ Ya aprobado</h1><p>Este acceso (scope: <code>${escapeHtml(data.scope)}</code>) ya fue aprobado anteriormente.</p><p>Código: <code>${escapeHtml(code)}</code></p></body></html>`);
   }
 
-  const confirmUrl =
-    `/api/portalk?action=confirm_access&code=${encodeURIComponent(code)}`;
-
+  const confirmUrl = `/api/portalk?action=confirm_access&code=${encodeURIComponent(code)}`;
   const html = `
 <!doctype html>
 <html>
@@ -512,29 +470,9 @@ async function handleApproveAccess(req, res) {
 <meta charset="utf-8">
 <title>Autorización solicitada</title>
 <style>
-body{
-  font-family: system-ui, sans-serif;
-  max-width:480px;
-  margin:60px auto;
-  padding:24px;
-  text-align:center;
-}
-.btn{
-  display:inline-block;
-  margin-top:24px;
-  padding:14px 28px;
-  background:#22c55e;
-  color:#022c22;
-  text-decoration:none;
-  border-radius:10px;
-  font-weight:600;
-}
-.code{
-  font-family:monospace;
-  background:#f5f5f5;
-  padding:4px 8px;
-  border-radius:6px;
-}
+body{ font-family: system-ui, sans-serif; max-width:480px; margin:60px auto; padding:24px; text-align:center; }
+.btn{ display:inline-block; margin-top:24px; padding:14px 28px; background:#22c55e; color:#022c22; text-decoration:none; border-radius:10px; font-weight:600; }
+.code{ font-family:monospace; background:#f5f5f5; padding:4px 8px; border-radius:6px; }
 </style>
 </head>
 <body>
@@ -544,14 +482,12 @@ body{
 <p>Si no iniciaste esta acción, ignorá esta página — no se ejecuta nada hasta que aprobés.</p>
 <a class="btn" href="${confirmUrl}">Aprobar acceso</a>
 </body>
-</html>
-`;
+</html>`;
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   return res.send(html);
 }
 
-// ── confirm_access: el click real que aprueba ────────────────
 async function handleConfirmAccess(req, res) {
   const { code } = req.query;
   if (!code) return res.status(400).send("code requerido");
@@ -562,21 +498,12 @@ async function handleConfirmAccess(req, res) {
   const data = typeof raw === "string" ? JSON.parse(raw) : raw;
   data.status = "approved";
   data.approved_at = Date.now();
+  await redis.set(`authreq:${code}`, JSON.stringify(data), { ex: 3600 });
 
-  await redis.set(`authreq:${code}`, JSON.stringify(data), { ex: 3600 }); // 1h de validez
-
-  return res.send(`
-<!doctype html>
-<html><head><meta charset="utf-8"><title>Aprobado</title></head>
-<body style="font-family:system-ui;max-width:480px;margin:60px auto;text-align:center;">
-<h1>✅ Acceso aprobado</h1>
-<p>El asistente ya puede usar el código <code>${escapeHtml(code)}</code> durante la próxima hora.</p>
-<p>Scope: <code>${escapeHtml(data.scope)}</code></p>
-</body></html>
-`);
+  return res.send(`<!doctype html><html><head><meta charset="utf-8"><title>Aprobado</title></head><body style="font-family:system-ui;max-width:480px;margin:60px auto;text-align:center;"><h1>✅ Acceso aprobado</h1><p>El asistente ya puede usar el código <code>${escapeHtml(code)}</code> durante la próxima hora.</p><p>Scope: <code>${escapeHtml(data.scope)}</code></p></body></html>`);
 }
 
-// ── Memoria: leer ────────────────────────────────────────────
+// ── Memoria ──────────────────────────────────────────────────
 async function handleMemoryRead(req, res) {
   const { entity, key } = req.query;
   if (!entity) return res.status(400).json({ error: "entity requerido" });
@@ -595,14 +522,11 @@ async function handleMemoryRead(req, res) {
     const shortKey = k.replace(`memory:${entity}:`, "");
     memory[shortKey] = values[i];
   });
-
   return res.json({ entity, memory });
 }
 
-// ── Memoria: escribir ────────────────────────────────────────
 async function handleMemoryWrite(req, res) {
   let entity, key, value;
-
   if (req.method === "POST") {
     const body = req.body || {};
     entity = body.entity ?? req.query.entity;
@@ -612,40 +536,28 @@ async function handleMemoryWrite(req, res) {
     ({ entity, key, value } = req.query);
   }
 
-  if (!entity || !key || value === undefined) {
-    return res.status(400).json({ error: "entity, key y value requeridos" });
-  }
-
+  if (!entity || !key || value === undefined) return res.status(400).json({ error: "entity, key y value requeridos" });
   await redis.set(`memory:${entity}:${key}`, value);
 
-  if (req.method === "POST") {
-    return res.json({ ok: true, entity, key, length: value.length });
-  }
-
-  return res.redirect(
-    `/portal.html?status=memory_ok&entity=${encodeURIComponent(entity)}&key=${encodeURIComponent(key)}`
-  );
+  if (req.method === "POST") return res.json({ ok: true, entity, key, length: value.length });
+  return res.redirect(`/portal.html?status=memory_ok&entity=${encodeURIComponent(entity)}&key=${encodeURIComponent(key)}`);
 }
 
-// ── Memoria: listar keys ─────────────────────────────────────
 async function handleMemoryList(req, res) {
   const { entity } = req.query;
   if (!entity) return res.status(400).json({ error: "entity requerido" });
-
   const keys = await redis.keys(`memory:${entity}:*`);
   const shortKeys = keys.map(k => k.replace(`memory:${entity}:`, ""));
-
   return res.json({ entity, keys: shortKeys });
 }
 
-// ── Sheets: leer CSV público ─────────────────────────────────
+// ── Sheets ───────────────────────────────────────────────────
 async function handleSheetsRead(req, res) {
   const url = process.env.SHEETS_CSV_URL;
   if (!url) return res.status(400).json({ error: "SHEETS_CSV_URL no configurada en env" });
 
   const r = await fetch(url);
   if (!r.ok) return res.status(502).json({ error: "No se pudo leer la Sheet", status: r.status });
-
   const csv = await r.text();
 
   const memory = {};
@@ -656,14 +568,12 @@ async function handleSheetsRead(req, res) {
     const val  = cols.slice(1, -1).join(",").replace(/^"|"$/g, "").trim();
     if (key) memory[key] = val;
   }
-
   return res.json({ ok: true, memory });
 }
 
-// ── Calendar: crear evento ───────────────────────────────────
+// ── Calendar ─────────────────────────────────────────────────
 async function handleCalendar(req, res) {
   const { name, service, date, time, notes } = req.query;
-
   const refreshToken = await redis.get("google_refresh_token");
   if (!refreshToken) return res.redirect("/portal.html?mode=setup");
 
@@ -682,29 +592,24 @@ async function handleCalendar(req, res) {
   const startDate = new Date(`${date} ${time}`);
   const endDate   = new Date(startDate.getTime() + 60 * 60 * 1000);
 
-  const calRes = await fetch(
-    "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${access_token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        summary: `${service || "Turno"} - ${name || "Cliente"}`,
-        description: notes || "",
-        start: { dateTime: startDate.toISOString(), timeZone: "America/Argentina/Buenos_Aires" },
-        end:   { dateTime: endDate.toISOString(),   timeZone: "America/Argentina/Buenos_Aires" }
-      })
-    }
-  );
+  const calRes = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${access_token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      summary: `${service || "Turno"} - ${name || "Cliente"}`,
+      description: notes || "",
+      start: { dateTime: startDate.toISOString(), timeZone: "America/Argentina/Buenos_Aires" },
+      end:   { dateTime: endDate.toISOString(),   timeZone: "America/Argentina/Buenos_Aires" }
+    })
+  });
   const calData = await calRes.json();
   if (calData.htmlLink) {
-    return res.redirect(
-      `/portal.html?status=ok&event=${encodeURIComponent(calData.htmlLink)}&name=${encodeURIComponent(name || "Cliente")}`
-    );
+    return res.redirect(`/portal.html?status=ok&event=${encodeURIComponent(calData.htmlLink)}&name=${encodeURIComponent(name || "Cliente")}`);
   }
   return res.status(500).json({ error: "Calendar API error", detail: calData });
 }
 
-// ── Blogger: crear o actualizar página/post ──────────────────
+// ── Blogger ──────────────────────────────────────────────────
 async function handleBloggerPost(req, res) {
   const body = req.method === "POST" ? (req.body || {}) : req.query;
   const title    = body.title    ?? req.query.title;
@@ -712,12 +617,9 @@ async function handleBloggerPost(req, res) {
   const labels   = body.labels   ?? req.query.labels;
   const page_id  = body.page_id  ?? req.query.page_id;
 
-  if (!title || !content) {
-    return res.status(400).json({ error: "title y content requeridos" });
-  }
+  if (!title || !content) return res.status(400).json({ error: "title y content requeridos" });
 
   const BLOG_ID = process.env.BLOGGER_BLOG_ID || "1841430618213161331";
-
   const refreshToken = await redis.get("google_refresh_token");
   if (!refreshToken) return res.status(401).json({ error: "Sin refresh token" });
 
@@ -725,70 +627,43 @@ async function handleBloggerPost(req, res) {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id:     process.env.GOOGLE_CLIENT_ID,
+      client_id: process.env.GOOGLE_CLIENT_ID,
       client_secret: process.env.GOOGLE_CLIENT_SECRET,
       refresh_token: refreshToken,
-      grant_type:    "refresh_token"
+      grant_type: "refresh_token"
     })
   });
   const { access_token, error: tokenError } = await refreshRes.json();
   if (!access_token) return res.status(401).json({ error: "Token refresh falló", detail: tokenError });
 
-  const headers = {
-    Authorization: `Bearer ${access_token}`,
-    "Content-Type": "application/json"
-  };
-
-  const payload = {
-    title,
-    content,
-    ...(labels && { labels: labels.split(",").map(l => l.trim()) })
-  };
+  const headers = { Authorization: `Bearer ${access_token}`, "Content-Type": "application/json" };
+  const payload = { title, content, ...(labels && { labels: labels.split(",").map(l => l.trim()) }) };
 
   let blogRes, blogData;
-
   if (page_id) {
-    blogRes = await fetch(
-      `https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts/${page_id}`,
-      { method: "PUT", headers, body: JSON.stringify(payload) }
-    );
+    blogRes = await fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts/${page_id}`, { method: "PUT", headers, body: JSON.stringify(payload) });
   } else {
-    blogRes = await fetch(
-      `https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts/`,
-      { method: "POST", headers, body: JSON.stringify(payload) }
-    );
+    blogRes = await fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts/`, { method: "POST", headers, body: JSON.stringify(payload) });
   }
-
   blogData = await blogRes.json();
 
   if (blogData.url) {
-    return res.redirect(
-      `/portal.html?status=blogger_ok&post_url=${encodeURIComponent(blogData.url)}&title=${encodeURIComponent(title)}&post_id=${blogData.id}`
-    );
+    return res.redirect(`/portal.html?status=blogger_ok&post_url=${encodeURIComponent(blogData.url)}&title=${encodeURIComponent(title)}&post_id=${blogData.id}`);
   }
-
   if (blogData.error?.code === 403) {
-    return res.status(403).json({
-      error: "Sin permiso para Blogger — necesitás re-autorizar con scope blogger",
-      detail: blogData.error,
-      reauth_url: "/api/auth/google?mode=setup"
-    });
+    return res.status(403).json({ error: "Sin permiso para Blogger — necesitás re-autorizar con scope blogger", detail: blogData.error, reauth_url: "/api/auth/google?mode=setup" });
   }
-
   return res.status(500).json({ error: "Error posteando en Blogger", detail: blogData });
 }
 
-// ── Mercado Pago: crear preferencia ─────────────────────────
+// ── Mercado Pago ─────────────────────────────────────────────
 async function handlePayment(req, res) {
   const { amount, description, name, payer_email } = req.query;
   if (!amount || !description) return res.status(400).json({ error: "amount y description requeridos" });
 
   const mpRes = await fetch("https://api.mercadopago.com/checkout/preferences", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
-      "Content-Type": "application/json"
-    },
+    headers: { Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       items: [{ title: description, quantity: 1, currency_id: "ARS", unit_price: parseFloat(amount) }],
       payer: { name: name || "Cliente", ...(payer_email && { email: payer_email }) },
@@ -805,27 +680,19 @@ async function handlePayment(req, res) {
   return res.status(500).json({ error: "Error creando preferencia", detail: mpData });
 }
 
-// ── shorten: guarda una URL larga, devuelve una corta ─────────
+// ── Shortener ────────────────────────────────────────────────
 async function handleShorten(req, res) {
   const { url } = req.method === "POST" ? (req.body || {}) : req.query;
   if (!url) return res.status(400).json({ error: "url requerida" });
-
   const code = generateAuthCode();
-
-  await redis.set(`shortlink:${code}`, url, { ex: 3600 }); // 1h
-
-  return res.json({
-    short_url: `${BASE_URL}/api/portalk?action=go&code=${code}`
-  });
+  await redis.set(`shortlink:${code}`, url, { ex: 3600 });
+  return res.json({ short_url: `${BASE_URL}/api/portalk?action=go&code=${code}` });
 }
 
-// ── go: redirige a la URL larga guardada ───────────────────────
 async function handleGo(req, res) {
   const { code } = req.query;
   if (!code) return res.status(400).send("code requerido");
-
   const url = await redis.get(`shortlink:${code}`);
   if (!url) return res.status(404).send("Link expirado o inválido.");
-
   return res.redirect(url);
 }
