@@ -152,6 +152,70 @@ function receiveAction() {
     return;
   }
 
+  // ── GitHub write GRANDE: pantalla para pegar contenido ─────────
+  if (status === "github_write_large_pending") {
+    const code = params.get("code");
+    log(`STATUS: github_write_large_pending`);
+    history.replaceState({}, '', '/portal.html');
+    el.innerHTML = panel("panel-neutral", "⏳ Cargando...", "");
+
+    fetch(`/api/portalk?action=github_write_large_preview&code=${encodeURIComponent(code)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) {
+          el.innerHTML = panel("panel-red", "❌ Error", `<p class="panel-row">${esc(data.error)}</p>`);
+          return;
+        }
+        el.innerHTML = panel("panel-neutral", "📋 Pegar contenido para escribir",
+          `<p class="panel-row"><b>Repo:</b> ${esc(data.repo)}</p>
+           <p class="panel-row"><b>Path:</b> ${esc(data.path)}</p>
+           <p class="panel-row"><b>Branch:</b> ${esc(data.branch)}</p>
+           <p class="panel-row"><b>Mensaje:</b> ${esc(data.message)}</p>
+           <p class="panel-row"><b>Código:</b> <code>${esc(code)}</code></p>
+           <textarea class="memory-textarea" id="largeContent" placeholder="Pegá aquí el contenido a escribir..." style="min-height:300px;"></textarea>
+           <div class="countdown-wrap">
+             <button class="btn-cancel" id="lwCancelBtn">Cancelar</button>
+             <button class="btn-primary" id="lwWriteBtn">Escribir</button>
+           </div>`);
+
+        document.getElementById("lwWriteBtn").onclick = () => {
+          const content = document.getElementById("largeContent").value;
+          if (!content) { alert("Pegá el contenido primero."); return; }
+          document.getElementById("lwWriteBtn").disabled = true;
+          document.getElementById("lwWriteBtn").textContent = "Escribiendo...";
+
+          fetch(`/api/portalk?action=github_write_large_confirm`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code, content })
+          })
+            .then(r => r.json())
+            .then(result => {
+              if (result.ok) {
+                log(`STATUS: github_write_large_ok`);
+                el.innerHTML = panel("panel-green", "✅ Archivo escrito en GitHub",
+                  `<p class="panel-row"><b>${esc(result.repo)}/${esc(result.path)}</b></p><p class="panel-row"><b>SHA:</b> ${esc(result.sha)}</p>` + link(result.url, "Ver en GitHub →"));
+                saveState();
+              } else {
+                el.innerHTML = panel("panel-red", "❌ Error al escribir", `<p class="panel-row">${esc(result.error || "Error desconocido")}</p>`);
+              }
+            })
+            .catch(() => {
+              el.innerHTML = panel("panel-red", "❌ Error", `<p class="panel-row">No se pudo completar la escritura.</p>`);
+            });
+        };
+
+        document.getElementById("lwCancelBtn").onclick = () => {
+          window.location.href = `/api/portalk?action=github_write_large_cancel&code=${encodeURIComponent(code)}`;
+        };
+      })
+      .catch(() => {
+        el.innerHTML = panel("panel-red", "❌ Error", `<p class="panel-row">No se pudo cargar la propuesta.</p>`);
+      });
+
+    return;
+  }
+
   // ── GitHub write pending: pedir preview y mostrar confirmación ──
   if (status === "github_write_pending") {
     const code = params.get("code");
