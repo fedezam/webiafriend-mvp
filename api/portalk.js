@@ -9,7 +9,6 @@ export const config = {
 // ── Render público: mapeo id -> repo/branch ─────────────────
 const RENDER_REPO_MAP = {
   "a3f9c1e02b4d": { repo: "INDICEIA-PUBLIC", branch: "main" },
-  "b7e2d4f91c3a": { repo: "INDICEIA", branch: "main" },
 };
 
 const RENDER_GITHUB_TOKEN = process.env.GITHUB_TOKEN_RENDER_ONLY || process.env.GITHUB_TOKEN;
@@ -445,10 +444,57 @@ async function handleRequestAccess(req, res) {
   await redis.set(`authreq:${code}`, JSON.stringify({ scope, status: "pending", created: Date.now() }), { ex: 300 });
 
   const approveUrl = `${BASE_URL}/api/portalk?action=approve_access&code=${encodeURIComponent(code)}`;
-  return res.json({
-    status: "pending_authorization", code, scope, approve_url: approveUrl,
-    message: "Pedile al usuario que abra approve_url y confirme. Luego reintentá la acción original agregando &auth=" + code
-  });
+
+  if (req.headers.accept?.includes("application/json")) {
+    return res.json({ status: "pending_authorization", code, scope, approve_url: approveUrl });
+  }
+
+  const html = `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Solicitud de acceso</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 480px; margin: 60px auto; padding: 24px; text-align: center; }
+  h1 { font-size: 1.4rem; margin-bottom: 8px; }
+  .scope { font-family: monospace; background: #f0f0f0; padding: 6px 12px; border-radius: 6px; display: inline-block; margin: 8px 0; }
+  .card { background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 12px; padding: 24px; margin: 24px 0; }
+  .label { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .code-box { font-family: monospace; font-size: 1.1rem; background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .copy-btn { background: none; border: 1px solid #ccc; border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 0.85rem; color: #555; }
+  .copy-btn:hover { background: #eee; }
+  .auth-str { font-family: monospace; font-size: 0.85rem; background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; word-break: break-all; }
+  .approve-btn { display: inline-block; margin-top: 24px; padding: 14px 32px; background: #22c55e; color: #022c22; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 1rem; }
+  .approve-btn:hover { background: #16a34a; }
+  .note { font-size: 0.8rem; color: #999; margin-top: 16px; }
+</style>
+</head>
+<body>
+  <h1>🔐 Solicitud de acceso</h1>
+  <p>Scope solicitado:</p>
+  <span class="scope">${escapeHtml(scope)}</span>
+
+  <div class="card">
+    <div class="label">Código para el asistente</div>
+    <div class="code-box">
+      <span id="code">${escapeHtml(code)}</span>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText('${escapeHtml(code)}'); this.textContent='✓'">Copiar</button>
+    </div>
+
+    <div class="label" style="margin-top:16px">String &auth= listo para pegar</div>
+    <div class="auth-str">
+      <span>&amp;auth=${escapeHtml(code)}</span>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText('&auth=${escapeHtml(code)}'); this.textContent='✓'">Copiar</button>
+    </div>
+  </div>
+
+  <a class="approve-btn" href="${escapeHtml(approveUrl)}">✅ Aprobar acceso</a>
+  <p class="note">Expira en 5 minutos. Si no iniciaste esta acción, cerrá esta página.</p>
+</body>
+</html>`;
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  return res.send(html);
 }
 
 async function handleApproveAccess(req, res) {
