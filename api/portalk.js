@@ -9,6 +9,7 @@ export const config = {
 // ── Render público: mapeo id -> repo/branch ─────────────────
 const RENDER_REPO_MAP = {
   "a3f9c1e02b4d": { repo: "INDICEIA-PUBLIC", branch: "main" },
+  "b7e2d4f91c3a": { repo: "INDICEIA", branch: "main" },
 };
 
 const RENDER_GITHUB_TOKEN = process.env.GITHUB_TOKEN_RENDER_ONLY || process.env.GITHUB_TOKEN;
