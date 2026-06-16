@@ -89,6 +89,12 @@ export default async function handler(req, res) {
     case "shorten":      return handleShorten(req, res);
     case "go":           return handleGo(req, res);
 
+    // ── Notion ────────────────────────────────
+    case "notion_search":      return handleNotionSearch(req, res);
+    case "notion_page_read":   return handleNotionPageRead(req, res);
+    case "notion_page_create": return handleNotionPageCreate(req, res);
+    case "notion_db_query":    return handleNotionDbQuery(req, res);
+
     default:
       return res.status(400).json({ error: `Acción desconocida: ${action}` });
   }
@@ -744,4 +750,90 @@ async function handleGo(req, res) {
   const url = await redis.get(`shortlink:${code}`);
   if (!url) return res.status(404).send("Link expirado o inválido.");
   return res.redirect(url);
+}
+
+// ── Notion ───────────────────────────────────────────────────
+const NOTION_API = "https://api.notion.com/v1";
+const NOTION_VERSION = "2022-06-28";
+
+function notionHeaders() {
+  return {
+    Authorization: `Bearer ${process.env.NOTION_TOKEN}`,
+    "Notion-Version": NOTION_VERSION,
+    "Content-Type": "application/json",
+  };
+}
+
+async function handleNotionSearch(req, res) {
+  const { query, filter } = req.query;
+  const body = { page_size: 20 };
+  if (query) body.query = query;
+  if (filter) body.filter = { property: "object", value: filter }; // "page" o "database"
+
+  const r = await fetch(`${NOTION_API}/search`, {
+    method: "POST",
+    headers: notionHeaders(),
+    body: JSON.stringify(body),
+  });
+  const data = await r.json();
+  if (!r.ok) return res.status(r.status).json({ error: data.message || "Error Notion" });
+  return res.json({ results: data.results, has_more: data.has_more });
+}
+
+async function handleNotionPageRead(req, res) {
+  const { page_id } = req.query;
+  if (!page_id) return res.status(400).json({ error: "page_id requerido" });
+
+  const [pageMeta, blocks] = await Promise.all([
+    fetch(`${NOTION_API}/pages/${page_id}`, { headers: notionHeaders() }).then(r => r.json()),
+    fetch(`${NOTION_API}/blocks/${page_id}/children?page_size=100`, { headers: notionHeaders() }).then(r => r.json()),
+  ]);
+
+  return res.json({ meta: pageMeta, blocks: blocks.results || [] });
+}
+
+async function handleNotionPageCreate(req, res) {
+  const body = req.method === "POST" ? (req.body || {}) : req.query;
+  const { parent_id, title, content } = body;
+  if (!parent_id || !title) return res.status(400).json({ error: "parent_id y title requeridos" });
+
+  const payload = {
+    parent: { page_id: parent_id },
+    properties: {
+      title: { title: [{ text: { content: title } }] },
+    },
+    children: content ? [{
+      object: "block",
+      type: "paragraph",
+      paragraph: { rich_text: [{ text: { content } }] },
+    }] : [],
+  };
+
+  const r = await fetch(`${NOTION_API}/pages`, {
+    method: "POST",
+    headers: notionHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await r.json();
+  if (!r.ok) return res.status(r.status).json({ error: data.message || "Error Notion" });
+  return res.json({ ok: true, page_id: data.id, url: data.url });
+}
+
+async function handleNotionDbQuery(req, res) {
+  const body = req.method === "POST" ? (req.body || {}) : req.query;
+  const { database_id, filter, sorts } = body;
+  if (!database_id) return res.status(400).json({ error: "database_id requerido" });
+
+  const payload = { page_size: 20 };
+  if (filter) payload.filter = typeof filter === "string" ? JSON.parse(filter) : filter;
+  if (sorts) payload.sorts = typeof sorts === "string" ? JSON.parse(sorts) : sorts;
+
+  const r = await fetch(`${NOTION_API}/databases/${database_id}/query`, {
+    method: "POST",
+    headers: notionHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await r.json();
+  if (!r.ok) return res.status(r.status).json({ error: data.message || "Error Notion" });
+  return res.json({ results: data.results, has_more: data.has_more });
 }
